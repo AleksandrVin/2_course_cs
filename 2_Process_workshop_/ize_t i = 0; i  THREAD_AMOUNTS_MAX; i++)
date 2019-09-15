@@ -1,0 +1,68 @@
+PTHREAD_JOIN(3)                                                                                                          Linux Programmer's Manual                                                                                                         PTHREAD_JOIN(3)
+
+NNAAMMEE
+       pthread_join - join with a terminated thread
+
+SSYYNNOOPPSSIISS
+       ##iinncclluuddee <<pptthhrreeaadd..hh>>
+
+       iinntt pptthhrreeaadd__jjooiinn((pptthhrreeaadd__tt _t_h_r_e_a_d,, vvooiidd ****_r_e_t_v_a_l));;
+
+       Compile and link with _-_p_t_h_r_e_a_d.
+
+DDEESSCCRRIIPPTTIIOONN
+       The pptthhrreeaadd__jjooiinn() function waits for the thread specified by _t_h_r_e_a_d to terminate.  If that thread has already terminated, then pptthhrreeaadd__jjooiinn() returns immediately.  The thread specified by _t_h_r_e_a_d must be joinable.
+
+       If  _r_e_t_v_a_l  is  not NULL, then pptthhrreeaadd__jjooiinn() copies the exit status of the target thread (i.e., the value that the target thread supplied to pptthhrreeaadd__eexxiitt(3)) into the location pointed to by _r_e_t_v_a_l.  If the target thread was canceled, then PPTTHHRREEAADD__CCAANNCCEELLEEDD is
+       placed in the location pointed to by _r_e_t_v_a_l.
+
+       If multiple threads simultaneously try to join with the same thread, the results are undefined.  If the thread calling pptthhrreeaadd__jjooiinn() is canceled, then the target thread will remain joinable (i.e., it will not be detached).
+
+RREETTUURRNN VVAALLUUEE
+       On success, pptthhrreeaadd__jjooiinn() returns 0; on error, it returns an error number.
+
+EERRRROORRSS
+       EEDDEEAADDLLKK
+              A deadlock was detected (e.g., two threads tried to join with each other); or _t_h_r_e_a_d specifies the calling thread.
+
+       EEIINNVVAALL _t_h_r_e_a_d is not a joinable thread.
+
+       EEIINNVVAALL Another thread is already waiting to join with this thread.
+
+       EESSRRCCHH  No thread with the ID _t_h_r_e_a_d could be found.
+
+AATTTTRRIIBBUUTTEESS
+       For an explanation of the terms used in this section, see aattttrriibbuutteess(7).
+
+       ┌───────────────┬───────────────┬─────────┐
+       │IInntteerrffaaccee      │ AAttttrriibbuuttee     │ VVaalluuee   │
+       ├───────────────┼───────────────┼─────────┤
+       │pptthhrreeaadd__jjooiinn() │ Thread safety │ MT-Safe │
+       └───────────────┴───────────────┴─────────┘
+
+CCOONNFFOORRMMIINNGG TTOO
+       POSIX.1-2001, POSIX.1-2008.
+
+NNOOTTEESS
+       After a successful call to pptthhrreeaadd__jjooiinn(), the caller is guaranteed that the target thread has terminated.  The caller may then choose to do any clean-up that is required after termination of the thread (e.g., freeing memory or other resources that were allo‐
+       cated to the target thread).
+
+       Joining with a thread that has previously been joined results in undefined behavior.
+
+       Failure to join with a thread that is joinable (i.e., one that is not detached), produces a "zombie thread".  Avoid doing this, since each zombie thread consumes some system resources, and when enough zombie threads have accumulated, it will no longer be pos‐
+       sible to create new threads (or processes).
+
+       There is no pthreads analog of _w_a_i_t_p_i_d_(_-_1_, _&_s_t_a_t_u_s_, _0_), that is, "join with any terminated thread".  If you believe you need this functionality, you probably need to rethink your application design.
+
+       All of the threads in a process are peers: any thread can join with any other thread in the process.
+
+EEXXAAMMPPLLEE
+       See pptthhrreeaadd__ccrreeaattee(3).
+
+SSEEEE AALLSSOO
+       pptthhrreeaadd__ccaanncceell(3), pptthhrreeaadd__ccrreeaattee(3), pptthhrreeaadd__ddeettaacchh(3), pptthhrreeaadd__eexxiitt(3), pptthhrreeaadd__ttrryyjjooiinn__nnpp(3), pptthhrreeaaddss(7)
+
+CCOOLLOOPPHHOONN
+       This page is part of release 4.15 of the Linux _m_a_n_-_p_a_g_e_s project.  A description of the project, information about reporting bugs, and the latest version of this page, can be found at https://www.kernel.org/doc/man-pages/.
+
+Linux                                                                                                                           2017-09-15                                                                                                                 PTHREAD_JOIN(3)

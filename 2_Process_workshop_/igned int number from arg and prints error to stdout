@@ -1,0 +1,103 @@
+EXEC(3)                                                                                   Linux Programmer's Manual                                                                                  EXEC(3)
+
+NNAAMMEE
+       execl, execlp, execle, execv, execvp, execvpe - execute a file
+
+SSYYNNOOPPSSIISS
+       ##iinncclluuddee <<uunniissttdd..hh>>
+
+       eexxtteerrnn cchhaarr ****eennvviirroonn;;
+
+       iinntt eexxeeccll((ccoonnsstt cchhaarr **_p_a_t_h,, ccoonnsstt cchhaarr **_a_r_g,, ......
+                       //** ((cchhaarr  **)) NNUULLLL **//));;
+       iinntt eexxeeccllpp((ccoonnsstt cchhaarr **_f_i_l_e,, ccoonnsstt cchhaarr **_a_r_g,, ......
+                       //** ((cchhaarr  **)) NNUULLLL **//));;
+       iinntt eexxeeccllee((ccoonnsstt cchhaarr **_p_a_t_h,, ccoonnsstt cchhaarr **_a_r_g,, ......
+                       //**,, ((cchhaarr **)) NNUULLLL,, cchhaarr ** ccoonnsstt _e_n_v_p[[]] **//));;
+       iinntt eexxeeccvv((ccoonnsstt cchhaarr **_p_a_t_h,, cchhaarr **ccoonnsstt _a_r_g_v[[]]));;
+       iinntt eexxeeccvvpp((ccoonnsstt cchhaarr **_f_i_l_e,, cchhaarr **ccoonnsstt _a_r_g_v[[]]));;
+       iinntt eexxeeccvvppee((ccoonnsstt cchhaarr **_f_i_l_e,, cchhaarr **ccoonnsstt _a_r_g_v[[]],,
+                       cchhaarr **ccoonnsstt _e_n_v_p[[]]));;
+
+   Feature Test Macro Requirements for glibc (see ffeeaattuurree__tteesstt__mmaaccrrooss(7)):
+
+       eexxeeccvvppee(): _GNU_SOURCE
+
+DDEESSCCRRIIPPTTIIOONN
+       The  eexxeecc()  family  of  functions  replaces the current process image with a new process image.  The functions described in this manual page are front-ends for eexxeeccvvee(2).  (See the manual page for
+       eexxeeccvvee(2) for further details about the replacement of the current process image.)
+
+       The initial argument for these functions is the name of a file that is to be executed.
+
+       The _c_o_n_s_t _c_h_a_r _*_a_r_g and subsequent ellipses in the eexxeeccll(), eexxeeccllpp(), and eexxeeccllee() functions can be thought of as _a_r_g_0, _a_r_g_1, ..., _a_r_g_n.  Together they describe a list of one or  more  pointers  to
+       null-terminated strings that represent the argument list available to the executed program.  The first argument, by convention, should point to the filename associated with the file being executed.
+       The list of arguments _m_u_s_t be terminated by a null pointer, and, since these are variadic functions, this pointer must be cast _(_c_h_a_r _*_) _N_U_L_L.
+
+       The eexxeeccvv(), eexxeeccvvpp(), and eexxeeccvvppee() functions provide an array of pointers to null-terminated strings that represent the argument list available to the new program.  The first argument, by conven‐
+       tion, should point to the filename associated with the file being executed.  The array of pointers _m_u_s_t be terminated by a null pointer.
+
+       The eexxeeccllee() and eexxeeccvvppee() functions allow the caller to specify the environment of the executed program via the argument _e_n_v_p.  The _e_n_v_p argument is an array of pointers to null-terminated strings
+       and _m_u_s_t be terminated by a null pointer.  The other functions take the environment for the new process image from the external variable _e_n_v_i_r_o_n in the calling process.
+
+   SSppeecciiaall sseemmaannttiiccss ffoorr eexxeeccllpp(()) aanndd eexxeeccvvpp(())
+       The eexxeeccllpp(), eexxeeccvvpp(), and eexxeeccvvppee() functions duplicate the actions of the shell in searching for an executable file if the specified filename does not contain a slash (/) character.  The file is
+       sought in the colon-separated list of directory pathnames specified in the PPAATTHH environment variable.  If this variable isn't defined, the path list defaults to a list that includes the directories
+       returned by _c_o_n_f_s_t_r_(___C_S___P_A_T_H_) (which typically returns the value "/bin:/usr/bin") and possibly also the current working directory; see NOTES for further details.
+
+       If the specified filename includes a slash character, then PPAATTHH is ignored, and the file at the specified pathname is executed.
+
+       In addition, certain errors are treated specially.
+
+       If permission is denied for a file (the attempted eexxeeccvvee(2) failed with the error EEAACCCCEESS), these functions will continue searching the rest of the search path.  If no other file is found,  however,
+       they will return with _e_r_r_n_o set to EEAACCCCEESS.
+
+       If  the  header of a file isn't recognized (the attempted eexxeeccvvee(2) failed with the error EENNOOEEXXEECC), these functions will execute the shell (_/_b_i_n_/_s_h) with the path of the file as its first argument.
+       (If this attempt fails, no further searching is done.)
+
+RREETTUURRNN VVAALLUUEE
+       The eexxeecc() functions return only if an error has occurred.  The return value is -1, and _e_r_r_n_o is set to indicate the error.
+
+EERRRROORRSS
+       All of these functions may fail and set _e_r_r_n_o for any of the errors specified for eexxeeccvvee(2).
+
+VVEERRSSIIOONNSS
+       The eexxeeccvvppee() function first appeared in glibc 2.11.
+
+AATTTTRRIIBBUUTTEESS
+       For an explanation of the terms used in this section, see aattttrriibbuutteess(7).
+
+       ┌──────────────────────────────┬───────────────┬─────────────┐
+       │IInntteerrffaaccee                     │ AAttttrriibbuuttee     │ VVaalluuee       │
+       ├──────────────────────────────┼───────────────┼─────────────┤
+       │eexxeeccll(), eexxeeccllee(), eexxeeccvv()    │ Thread safety │ MT-Safe     │
+       ├──────────────────────────────┼───────────────┼─────────────┤
+       │eexxeeccllpp(), eexxeeccvvpp(), eexxeeccvvppee() │ Thread safety │ MT-Safe env │
+       └──────────────────────────────┴───────────────┴─────────────┘
+CCOONNFFOORRMMIINNGG TTOO
+       POSIX.1-2001, POSIX.1-2008.
+
+       The eexxeeccvvppee() function is a GNU extension.
+
+NNOOTTEESS
+       The default search path (used when the environment does not contain the variable PPAATTHH) shows some variation across systems.  It generally includes _/_b_i_n and _/_u_s_r_/_b_i_n (in that  order)  and  may  also
+       include  the current working directory.  On some other systems, the current working is included after _/_b_i_n and _/_u_s_r_/_b_i_n, as an anti-Trojan-horse measure.  The glibc implementation long followed the
+       traditional default where the current working directory is included at the start of the search path.  However, some code refactoring during the development of glibc 2.24 caused the current  working
+       directory to be dropped altogether from the default search path.  This accidental behavior change is considered mildly beneficial, and won't be reverted.
+
+       The  behavior of eexxeeccllpp() and eexxeeccvvpp() when errors occur while attempting to execute the file is historic practice, but has not traditionally been documented and is not specified by the POSIX stan‐
+       dard.  BSD (and possibly other systems) do an automatic sleep and retry if EETTXXTTBBSSYY is encountered.  Linux treats it as a hard error and returns immediately.
+
+       Traditionally, the functions eexxeeccllpp() and eexxeeccvvpp() ignored all errors except for the ones described above and EENNOOMMEEMM and EE22BBIIGG, upon which they returned.  They now return if any  error  other  than
+       the ones described above occurs.
+
+BBUUGGSS
+       Before glibc 2.24, eexxeeccll() and eexxeeccllee() employed rreeaalllloocc(3) internally and were consequently not async-signal-safe, in violation of the requirements of POSIX.1.  This was fixed in glibc 2.24.
+
+SSEEEE AALLSSOO
+       sshh(1), eexxeeccvvee(2), eexxeeccvveeaatt(2), ffoorrkk(2), ppttrraaccee(2), ffeexxeeccvvee(3), ssyysstteemm(3), eennvviirroonn(7)
+
+CCOOLLOOPPHHOONN
+       This  page  is  part  of  release  4.15  of  the  Linux  _m_a_n_-_p_a_g_e_s  project.   A  description  of the project, information about reporting bugs, and the latest version of this page, can be found at
+       https://www.kernel.org/doc/man-pages/.
+
+GNU                                                                                              2017-09-15                                                                                          EXEC(3)
