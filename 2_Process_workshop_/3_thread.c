@@ -16,7 +16,7 @@
 #include "../Lib_funcs.h"
 
 // max amount of threads using by program
-#define THREAD_AMOUNTS_MAX 64
+#define THREAD_AMOUNTS_MAX 1
 
 /**
  * @brief Test thread pointer to function to increment argument
@@ -27,17 +27,17 @@
 
 long long int number_thread = 0;
 
-int *thread_increment(long long int *number)
+static void *thread_increment(void *number)
 {
     // how much every thread must increment number
-    long long int number_per_thread = *number / THREAD_AMOUNTS_MAX;
+    long long int number_per_thread = *(int*)number / THREAD_AMOUNTS_MAX;
 
     for (size_t i = 0; i < number_per_thread; i++)
     {
-        (*number)++;
+        *(int*)number += 1;
     }
 
-    pthread_exit(0);
+    return 0;
 }
 
 int main(int argc, char **argv)
@@ -80,7 +80,7 @@ int main(int argc, char **argv)
     // creates THREAD_AMOUNT_MAX thread
     for (size_t i = 0; i < THREAD_AMOUNTS_MAX; i++)
     {
-        int status = pthread_create(&(tids[i]), &attr, (void *)thread_increment, &number_thread);
+        int status = pthread_create(&(tids[i]), &attr, thread_increment, &number_thread);
         if (status != 0)
         {
             printf("#### Error in thread creating happend\n");
@@ -90,13 +90,13 @@ int main(int argc, char **argv)
 
     for (size_t i = 0; i < THREAD_AMOUNTS_MAX; i++)
     {
-        void *ptrval;
-        int status = pthread_join(tids[i], &ptrval);
-        if (*(int *)ptrval != 0)
+        //int ptrval;
+        int status = pthread_join(tids[i], NULL);
+        /*         if (*(int *)ptrval != 0)
         {
             printf("thread_increment function failed ot operate in thread number: %ld\n", i);
             return -1;
-        }
+        } */
         if (status != 0)
         {
             printf("#### Error in thread creating happend\n");

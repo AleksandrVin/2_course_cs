@@ -51,10 +51,12 @@ int main(int argc, char **argv)
         if(pid > 0)
         {
             printf("Parent forked child with pid = %d\n", pid);
+            return 0;
         }
         else if(pid != 0)
         {
             printf("#### error in fork happened ####\n");
+            return -1;
         }
 
 // for child 
