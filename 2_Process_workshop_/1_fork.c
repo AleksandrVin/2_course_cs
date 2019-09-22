@@ -16,7 +16,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "../Lib_funcs.h"
+#include "../Custom_libs/Lib_funcs.h"
 
 int main(int argc, char **argv)
 {
@@ -47,27 +47,26 @@ int main(int argc, char **argv)
     {
         pid_t pid = fork();
 
-// for parent 
-        if(pid > 0)
+        // for parent
+        if (pid > 0)
         {
             printf("Parent forked child with pid = %d\n", pid);
-            return 0;
         }
-        else if(pid != 0)
+        else if (pid != 0)
         {
             printf("#### error in fork happened ####\n");
             return -1;
         }
 
-// for child 
+        // for child
         if (pid == 0)
         {
             pid_t local_pid = getpid();
             printf("\tPid of this child is %d\n", local_pid);
             printf("\t\tthis child was forked %ld in turn\n", i);
             // close process
-            exit(0);
+            return 0;
         }
-
     }
+    return 0;
 }

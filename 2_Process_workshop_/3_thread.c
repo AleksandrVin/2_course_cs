@@ -13,7 +13,7 @@
 
 #include <pthread.h>
 
-#include "../Lib_funcs.h"
+#include "../Custom_libs/Lib_funcs.h"
 
 // max amount of threads using by program
 #define THREAD_AMOUNTS_MAX 1
@@ -40,6 +40,8 @@ static void *thread_increment(void *number)
     return 0;
 }
 
+
+//TODO FIX ME . BAD RESULTS
 int main(int argc, char **argv)
 {
     if (argc > 2)

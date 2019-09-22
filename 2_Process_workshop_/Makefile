@@ -1,20 +1,34 @@
 CC=gcc
-CFLAGS=-g -Wall -std=c11
+CFLAGS=-g -Wall -std=gnu11 -O0 -lm -m64
 
-all: 1_fork
+P_1=1_fork
+P_2=2_exec
+P_3=3_thread
 
-1_fork: 1_fork.c
-	$(CC) $(CFLAGS) $< -o $@
 
-2_exex: 2_exex.c
-	$(CC) $(CFLAGS) $< -o $@
 
-3_thread: 3_thread.c
-	$(CC) $(CFLAGS) -pthread $< -o $@	
+PROGRAMS= $(P_1) $(P_2) $(P_3)
 
-run_2: 2_exec
-	./$< ls -l -a -s -h
+all: $(PROGRAMS)
 
-run: 3_thread
-	./$< 130	
+$(P_1): $(P_1).c
+	$(CC) $(CFLAGS) $< -o $@.elf64
 
+$(P_2): $(P_2).c
+	$(CC) $(CFLAGS) $< -o $@.elf64
+
+$(P_3): $(P_3).c
+	$(CC) $(CFLAGS) -pthread $< -o $@.elf64
+
+
+run_$(P_1): $(P_1)
+	./$<.elf64 100
+
+run_$(P_2): $(P_2)
+	./$<.elf64 ls -l -a -s -h
+
+run_$(P_3): $(P_3)
+	./$<.elf64 130	
+
+clear: 
+	$(RM) *elf64
