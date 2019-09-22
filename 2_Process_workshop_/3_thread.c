@@ -16,7 +16,7 @@
 #include "../Custom_libs/Lib_funcs.h"
 
 // max amount of threads using by program
-#define THREAD_AMOUNTS_MAX 1
+#define THREAD_AMOUNTS_MAX 6
 
 /**
  * @brief Test thread pointer to function to increment argument
@@ -27,21 +27,17 @@
 
 long long int number_thread = 0;
 
-static void *thread_increment(void *number)
+void *thread_increment(void *number)
 {
     // how much every thread must increment number
-    long long int number_per_thread = *(int*)number / THREAD_AMOUNTS_MAX;
-
-    for (size_t i = 0; i < number_per_thread; i++)
+    for (size_t i = 0; i < *((int*)number); i++)
     {
-        *(int*)number += 1;
+        number_thread += 1;
     }
 
     return 0;
 }
 
-
-//TODO FIX ME . BAD RESULTS
 int main(int argc, char **argv)
 {
     if (argc > 2)
@@ -79,10 +75,12 @@ int main(int argc, char **argv)
     pthread_attr_t attr;
     pthread_attr_init(&attr);
 
+    long long int number_per_thread = number / THREAD_AMOUNTS_MAX;
+
     // creates THREAD_AMOUNT_MAX thread
     for (size_t i = 0; i < THREAD_AMOUNTS_MAX; i++)
     {
-        int status = pthread_create(&(tids[i]), &attr, thread_increment, &number_thread);
+        int status = pthread_create(&(tids[i]), &attr, thread_increment, &number_per_thread);
         if (status != 0)
         {
             printf("#### Error in thread creating happend\n");

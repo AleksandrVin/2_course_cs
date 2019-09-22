@@ -12,5 +12,5 @@ all: $(P)
 run: $(P)
 	./$<.elf64 test.txt
 
-clear:
+clean:
 	$(RM) *.elf64

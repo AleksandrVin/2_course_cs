@@ -28,7 +28,7 @@ run_$(P_2): $(P_2)
 	./$<.elf64 ls -l -a -s -h
 
 run_$(P_3): $(P_3)
-	./$<.elf64 130	
+	./$<.elf64 1000000000
 
-clear: 
+clean: 
 	$(RM) *elf64
