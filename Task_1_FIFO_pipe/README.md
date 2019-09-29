@@ -16,14 +16,18 @@
 - launch with
 
 ```console
-./file_transfer -send -id=XXXX ${fileDirName}
+./file_transfer -send XXXX ${fileDirName}
 ```
+
+> id = XXXX
 
 - If sender ready to transfer open in other terminal with
 
 ```console
-./file_transfer -receive -id=XXXX
+./file_transfer -receive XXXX
 ```
+
+> id = XXXX
 
 ---
 

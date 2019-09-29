@@ -14,11 +14,18 @@
 #ifndef LIB_FUNCS
 #define LIB_FUNCS
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
 
 
-// TODO print to stderr and set ernno
+/**
+ * @brief define err_printf to printf to stderr more easy
+ * 
+ */
+#define err_printf( params ) fprintf( stderr , params )
+
+
 /**
  * @brief func for reading unsigned int number from arg and prints error to stdout 
  * 
@@ -26,33 +33,33 @@
  * @param argv argv from main func
  * @return long long int -1 if error or number
  */
-long long int ReadPosNumberFromArg(unsigned int argv_number, char **argv)
+unsigned int ReadPosNumberFromArg(unsigned int argv_number, char **argv)
 {
     // check pointer to string
     if (argv[argv_number] == NULL)
     {
-        printf("bad pointer to input string\n");
+        err_printf("bad pointer to input string\n");
         return -1;
     }
 
     char *ptr_for_last_char = NULL;
-    unsigned long long int number = strtoull(argv[argv_number], &ptr_for_last_char, 10);
+    unsigned int number = (unsigned int)strtoul(argv[argv_number], &ptr_for_last_char, 10);
 
     if (*ptr_for_last_char != '\0')
     {
-        printf("this is not number with base 10\n");
+        err_printf("this is not number with base 10\n");
         return -1;
     }
 
     if (errno == ERANGE)
     {
-        printf("input number out of range or incorrect\n");
+        err_printf("input number out of range or incorrect\n");
         return -1;
     }
 
     if (number < 1)
     {
-        printf("number if smaller then 1\n");
+        err_printf("number if smaller then 1\n");
         return -1;
     }
 

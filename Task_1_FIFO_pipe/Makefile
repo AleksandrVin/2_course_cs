@@ -10,7 +10,7 @@ all: $(P)
 
 
 run: $(P)
-	./$<.elf64
+	./$<.elf64 -receive 12345
 
 clean:
 	$(RM) *.elf64
