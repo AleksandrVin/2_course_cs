@@ -23,8 +23,8 @@
  * @brief define err_printf to printf to stderr more easy
  * 
  */
-#define err_printf( params ) fprintf( stderr , params )
-
+#define err_printf( ... ) fprintf( stderr , __VA_ARGS__ )
+ 
 
 /**
  * @brief func for reading unsigned int number from arg and prints error to stdout 

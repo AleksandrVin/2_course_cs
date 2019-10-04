@@ -16,7 +16,7 @@
 - launch with
 
 ```console
-./file_transfer -send XXXX ${fileDirName}
+./file_transfer -send ${fileDirName} XXXX
 ```
 
 > id = XXXX
@@ -24,22 +24,23 @@
 - If sender ready to transfer open in other terminal with
 
 ```console
-./file_transfer -receive XXXX
+./file_transfer -receive
 ```
-
-> id = XXXX
-
+>this call will tell you ID 
 ---
 
 ## Planing
 
 ### Stage 1
 
-- [ ] By using FIFO make file transfer
+- [X] By using FIFO make file transfer
 
 ### Stage 2
 
+- [ ] Add size of file chack 
+
 - [ ] Make program reliable
+
 
 - [ ] try to show it ot teacher
 

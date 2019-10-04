@@ -9,8 +9,12 @@ all: $(P)
 	$(CC) $(CFLAGS) $< -o $@.elf64
 
 
-run: $(P)
-	./$<.elf64 -receive 12345
+run_r: $(P)
+	./$<.elf64 -receive 
+
+run_s: $(P)
+	./$<.elf64 -send 12345 test.txt
+	
 
 clean:
 	$(RM) *.elf64
