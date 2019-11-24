@@ -16,7 +16,7 @@
 #include "../Custom_libs/Lib_funcs.h"
 
 // max amount of threads using by program
-#define THREAD_AMOUNTS_MAX 6
+#define THREAD_AMOUNTS_MAX 35
 
 /**
  * @brief Test thread pointer to function to increment argument

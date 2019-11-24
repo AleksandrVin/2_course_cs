@@ -1,7 +1,7 @@
 CC=gcc
 CFLAGS=-g -Wall -std=c11 -O0 -lm -m64
 
-P=file_transfer
+P=queue_main
 
 all: $(P)
 
@@ -9,11 +9,9 @@ all: $(P)
 	$(CC) $(CFLAGS) $< -o $@.elf64
 
 
-run_r: $(P)
-	./$<.elf64 -receive 
+run: $(P)
+	./$<.elf64 10
 
-run_s: $(P)
-	./$<.elf64 -send test.txt
 	
 
 clean:

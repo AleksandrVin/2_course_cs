@@ -33,7 +33,7 @@
  * @param argv argv from main func
  * @return long long int -1 if error or number
  */
-unsigned int ReadPosNumberFromArg(unsigned int argv_number, char **argv)
+long ReadPosNumberFromArg(unsigned int argv_number, char **argv)
 {
     // check pointer to string
     if (argv[argv_number] == NULL)
@@ -43,7 +43,7 @@ unsigned int ReadPosNumberFromArg(unsigned int argv_number, char **argv)
     }
 
     char *ptr_for_last_char = NULL;
-    unsigned int number = (unsigned int)strtoul(argv[argv_number], &ptr_for_last_char, 10);
+    long number = strtol(argv[argv_number], &ptr_for_last_char, 10);
 
     if (*ptr_for_last_char != '\0')
     {
