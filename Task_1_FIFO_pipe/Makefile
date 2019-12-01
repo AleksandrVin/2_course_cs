@@ -13,7 +13,7 @@ run_r: $(P)
 	./$<.elf64 -receive 
 
 run_s: $(P)
-	./$<.elf64 -send test.txt
+	./$<.elf64 -send file_transfer_old.c
 	
 
 clean:
