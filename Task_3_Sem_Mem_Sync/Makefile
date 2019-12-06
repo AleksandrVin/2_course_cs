@@ -3,9 +3,7 @@ CFLAGS=-g -Wall -std=c11 -O0 -lm -m64
 
 P=file_transfer
 
-P2=file_comparator
-
-all: $(P) $(P2)
+all: $(P)
 
 .c:
 	$(CC) $(CFLAGS) $< -o $@.elf64
@@ -15,10 +13,7 @@ run_r: $(P)
 	./$<.elf64 -receive 
 
 run_s: $(P)
-	./$<.elf64 -send file_transfer_old.c
-
-run_comp: $(P2)
-	./$<.elf64 mkfifo.txt mkfifo.txt
+	./$<.elf64 -send test.txt
 	
 
 clean:

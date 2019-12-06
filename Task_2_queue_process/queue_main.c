@@ -144,7 +144,7 @@ void child_function(size_t i)
         exit(-1);
     }
 
-    printf("\tI'm child %d and I has burned %ld in order\n", local_pid, i);
+    err_printf("%d ", i);
 
     struct mymsgbuf_pid buf_with_pid;
     buf_with_pid.mtype = MTYPE_FOR_CHILD_PID;
