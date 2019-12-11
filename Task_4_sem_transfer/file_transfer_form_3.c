@@ -43,18 +43,16 @@
 #define SHM_MEM_SIZE (4096 - sizeof(int))
 #define WRITE_AMOUNT_SIZE sizeof(int)
 
-#define SEM_NUM_AMOUNT 6
+#define SEM_NUM_AMOUNT 3
 
 #define SEM_NUM_WR_MUTEX 0
 #define SEM_NUM_EMPTY 1
 #define SEM_NUM_FULL 2
-#define SEM_NUM_S_DEATH 3
-#define SEM_NUM_R_DEATH 4
-#define SEM_NUM_INIT 5
 
 const char mode_send[] = "-send";
 const char mode_receive[] = "-receive";
 
+const char fifo_start_global_name[] = "/tmp/global_start_process_task_3.fifo";
 const char shm_mem_name[] = "/tmp/shm_mem_alek_3.shmmem";
 const char sem_global_acces_to_shmmem_file[] = "/tmp/sem_global_access_to_shmmem_file.sem";
 
@@ -129,14 +127,17 @@ int ReceiveFile()
     }
     close(sem_key_file_fd);
 
-    key_t key_shm = ftok(shm_mem_name, 0);
+    // init shm_mem
+    pid_t receiver_pid = getpid();
+
+    key_t key_shm = ftok(shm_mem_name, receiver_pid);
     if (key_shm == -1)
     {
         perror("unable to ftok key for smh\n");
         exit(EXIT_FAILURE);
     }
 
-    int shm_id = shmget(key_shm, SHM_MEM_SIZE + WRITE_AMOUNT_SIZE, IPC_CREAT | IPC_EXCL | 0666);
+    int shm_id = shmget(key_shm, SHM_MEM_SIZE + WRITE_AMOUNT_SIZE, IPC_CREAT | 0666);
     if (shm_id == -1)
     {
         perror("can't create shm_mem segmet\n");
@@ -153,7 +154,7 @@ int ReceiveFile()
     }
 
     // init sem
-    key_t key_sem = ftok(sem_global_acces_to_shmmem_file, 0);
+    key_t key_sem = ftok(sem_global_acces_to_shmmem_file, receiver_pid);
     if (key_sem == -1)
     {
         perror("unable to ftok key for sem\n");
@@ -161,24 +162,43 @@ int ReceiveFile()
         exit(EXIT_FAILURE);
     }
 
-    int sem_id = semget(key_sem, SEM_NUM_AMOUNT, IPC_CREAT | IPC_EXCL | 0666);
+    int sem_id = semget(key_sem, SEM_NUM_AMOUNT, IPC_CREAT | 0666);
     if (sem_id == -1)
     {
-        perror("can't create sem array or sem already exist\n");
+        perror("can't create sem array\n");
         clean_sem_shm(shm_id, sem_id);
         exit(EXIT_FAILURE);
     }
 
-    // V(death)
-    struct sembuf sops;
-    sops.sem_flg = SEM_UNDO;
-    sops.sem_num = SEM_NUM_R_DEATH;
-    sops.sem_op = 1;
+    // sender process waits for parent
+    // global fifo for synchronization
+    int fd_fifo_global = open(fifo_start_global_name, O_RDWR | O_NDELAY); // fd of FIFO
 
-    if (semop(sem_id, &sops, 1) != 0)
+    if (fd_fifo_global < 0)
     {
-        perror("can't set death sem\n");
-        exit(EXIT_FAILURE);
+        umask(0); // set mask to 0000
+        if (mkfifo(fifo_start_global_name, 0600) != 0)
+        {
+            perror("can't create FIFO_global\n");
+            clean_sem_shm(shm_id, sem_id);
+            exit(EXIT_FAILURE);
+        }
+        fd_fifo_global = open(fifo_start_global_name, O_RDWR | O_NDELAY);
+        if (fd_fifo_global < 0)
+        {
+            perror("can't open FIFO_global\n");
+            clean_sem_shm(shm_id, sem_id);
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    if (write(fd_fifo_global, &receiver_pid, sizeof(pid_t)) != sizeof(pid_t))
+    {
+        {
+            perror("can't write init pid to FIFO\n");
+            clean_sem_shm(shm_id, sem_id);
+            exit(EXIT_FAILURE);
+        }
     }
 
     if (WaitForSender(sem_id) == EXIT_FAILURE)
@@ -188,29 +208,22 @@ int ReceiveFile()
         exit(EXIT_FAILURE);
     }
 
+    close(fd_fifo_global);
+    unlink(fifo_start_global_name);
+
     int amount_to_read = 0; // printed to stdout
     do
     {
-        // Z(death_sender)
-        sops.sem_flg = IPC_NOWAIT;
-        sops.sem_num = SEM_NUM_S_DEATH;
-        sops.sem_op = 0;
-
-        if (semop(sem_id, &sops, 1) == 0)
-        {
-            err_printf("sender error accrued\n");
-            clean_sem_shm(shm_id, sem_id);
-            exit(EXIT_FAILURE);
-        }
-
         // P(full)
+        struct sembuf sops;
         sops.sem_flg = 0;
         sops.sem_num = SEM_NUM_FULL;
         sops.sem_op = -1;
 
         struct timespec timeout;
-        timeout.tv_sec = WAIT_TIMEOUT_LONG;
-        timeout.tv_nsec = WAIT_TIMEOUT_LONG;
+        timeout.tv_sec = WAIT_TIMEOUT;
+        timeout.tv_nsec = WAIT_TIMEOUT;
+
         if (semtimedop(sem_id, &sops, 1, &timeout) != 0)
         {
             perror("wait for sender empty release timeout\n");
@@ -222,7 +235,9 @@ int ReceiveFile()
         sops.sem_num = SEM_NUM_WR_MUTEX;
         sops.sem_op = -1;
 
-        if (semop(sem_id, &sops, 1) != 0)
+        timeout.tv_sec = WAIT_TIMEOUT;
+        timeout.tv_nsec = WAIT_TIMEOUT;
+        if (semtimedop(sem_id, &sops, 1, &timeout) != 0)
         {
             perror("wait for sender mutex realease timeout\n");
             clean_sem_shm(shm_id, sem_id);
@@ -254,7 +269,9 @@ int ReceiveFile()
         sops.sem_num = SEM_NUM_WR_MUTEX;
         sops.sem_op = 1;
 
-        if (semop(sem_id, &sops, 1) != 0)
+        timeout.tv_sec = WAIT_TIMEOUT;
+        timeout.tv_nsec = WAIT_TIMEOUT;
+        if (semtimedop(sem_id, &sops, 1, &timeout) != 0)
         {
             perror("wait for sender mutex realease timeout\n");
             return EXIT_FAILURE;
@@ -265,7 +282,9 @@ int ReceiveFile()
         sops.sem_num = SEM_NUM_EMPTY;
         sops.sem_op = 1;
 
-        if (semop(sem_id, &sops, 1) != 0)
+        timeout.tv_sec = WAIT_TIMEOUT;
+        timeout.tv_nsec = WAIT_TIMEOUT;
+        if (semtimedop(sem_id, &sops, 1, &timeout) != 0)
         {
             perror("wait for sender mutex realease timeout\n");
             return EXIT_FAILURE;
@@ -297,16 +316,6 @@ int WaitForSender(int sem_id)
         return EXIT_FAILURE;
     }
 
-    //V(init)
-    sops.sem_flg = 0;
-    sops.sem_num = SEM_NUM_INIT;
-    sops.sem_op = 1;
-    if (semop(sem_id, &sops, 1) != 0)
-    {
-        perror("can't set init value to star sendign");
-        exit(EXIT_FAILURE);
-    }
-
     // V(empty)
     sops.sem_flg = 0;
     sops.sem_num = SEM_NUM_EMPTY;
@@ -318,7 +327,7 @@ int WaitForSender(int sem_id)
         return EXIT_FAILURE;
     }
 
-    // wait to mutex be 0 by sender
+    // wait to sem be 0 by sender
     sops.sem_flg = 0;
     sops.sem_num = SEM_NUM_WR_MUTEX;
     sops.sem_op = 0;
@@ -355,18 +364,26 @@ int SendFile(const char *file_name)
         exit(EXIT_FAILURE);
     }
 
+    // get pid from receiver
+    pid_t receiver_pid = GetReceiverPId();
+    if (receiver_pid < 0)
+    {
+        perror("can't get receiver pid\n");
+        return EXIT_FAILURE;
+    }
+
     // init shm
-    key_t key_shm = ftok(shm_mem_name, 0);
+    key_t key_shm = ftok(shm_mem_name, receiver_pid);
     if (key_shm == -1)
     {
         perror("unable to ftok key for smh\n");
         exit(EXIT_FAILURE);
     }
 
-    int shm_id = shmget(key_shm, SHM_MEM_SIZE + WRITE_AMOUNT_SIZE, 0666);
+    int shm_id = shmget(key_shm, SHM_MEM_SIZE + WRITE_AMOUNT_SIZE, IPC_CREAT | 0666);
     if (shm_id == -1)
     {
-        perror("can't shm_mem segmet\n");
+        perror("can't create shm_mem segmet\n");
         clean_sem_shm(shm_id, 0);
         exit(EXIT_FAILURE);
     }
@@ -380,7 +397,7 @@ int SendFile(const char *file_name)
     }
 
     // init sem
-    key_t key_sem = ftok(sem_global_acces_to_shmmem_file, 0);
+    key_t key_sem = ftok(sem_global_acces_to_shmmem_file, receiver_pid);
     if (key_sem == -1)
     {
         perror("unable to ftok key for sem\n");
@@ -388,7 +405,7 @@ int SendFile(const char *file_name)
         exit(EXIT_FAILURE);
     }
 
-    int sem_id = semget(key_sem, SEM_NUM_AMOUNT, 0666);
+    int sem_id = semget(key_sem, SEM_NUM_AMOUNT, IPC_CREAT | 0666);
     if (sem_id == -1)
     {
         perror("can't create sem array\n");
@@ -397,55 +414,21 @@ int SendFile(const char *file_name)
     }
 
     struct sembuf sops;
-
-    // P(init)
-    sops.sem_flg = IPC_NOWAIT;
-    sops.sem_num = SEM_NUM_INIT;
-    sops.sem_op = -1;
-    if (semop(sem_id, &sops, 1) != 0)
-    {
-        perror("sender already exist\n");
-        exit(EXIT_FAILURE);
-    }
-
-    // V(death)
-    sops.sem_flg = SEM_UNDO;
-    sops.sem_num = SEM_NUM_S_DEATH;
-    sops.sem_op = 1;
-
-    if (semop(sem_id, &sops, 1) != 0)
-    {
-        perror("can't set death sem\n");
-        exit(EXIT_FAILURE);
-    }
+    struct timespec timeout;
 
     printf("\t Sending \n\n");
 
     int read_amount = 0;
     do
     {
-
-        struct sembuf sops2[2];
-        // Z(death_receiver)
-        sops2[1].sem_flg = IPC_NOWAIT;
-        sops2[1].sem_num = SEM_NUM_R_DEATH;
-        sops2[1].sem_op = 0;
-       /*  if (semop(sem_id, &sops, 1) == 0)
-        {
-            err_printf("receiver error accrued\n");
-            clean_sem_shm(shm_id, sem_id);
-            exit(EXIT_FAILURE);
-        } */
-
         // P(empty)
-        sops2[0].sem_flg = 0;
-        sops2[0].sem_num = SEM_NUM_EMPTY;
-        sops2[0].sem_op = -1;
+        sops.sem_flg = 0;
+        sops.sem_num = SEM_NUM_EMPTY;
+        sops.sem_op = -1;
 
-        struct timespec timeout;
-        timeout.tv_sec = WAIT_TIMEOUT_LONG;
-        timeout.tv_nsec = WAIT_TIMEOUT_LONG;
-        if (semtimedop(sem_id, sops2, 2, &timeout) != 0)
+        timeout.tv_sec = WAIT_TIMEOUT;
+        timeout.tv_nsec = WAIT_TIMEOUT;
+        if (semtimedop(sem_id, &sops, 1, &timeout) != 0)
         {
             perror("send timeout error 1\n");
             clean_sem_shm(shm_id, sem_id);
@@ -457,7 +440,9 @@ int SendFile(const char *file_name)
         sops.sem_num = SEM_NUM_WR_MUTEX;
         sops.sem_op = -1;
 
-        if (semop(sem_id, &sops, 1) != 0)
+        timeout.tv_sec = WAIT_TIMEOUT;
+        timeout.tv_nsec = WAIT_TIMEOUT;
+        if (semtimedop(sem_id, &sops, 1, &timeout) != 0)
         {
             perror("send timeout error 2\n");
             clean_sem_shm(shm_id, sem_id);
@@ -480,7 +465,9 @@ int SendFile(const char *file_name)
         sops.sem_num = SEM_NUM_WR_MUTEX;
         sops.sem_op = 1;
 
-        if (semop(sem_id, &sops, 1) != 0)
+        timeout.tv_sec = WAIT_TIMEOUT;
+        timeout.tv_nsec = WAIT_TIMEOUT;
+        if (semtimedop(sem_id, &sops, 1, &timeout) != 0)
         {
             perror("send timeout error 1\n");
             clean_sem_shm(shm_id, sem_id);
@@ -492,7 +479,9 @@ int SendFile(const char *file_name)
         sops.sem_num = SEM_NUM_FULL;
         sops.sem_op = 1;
 
-        if (semop(sem_id, &sops, 1) != 0)
+        timeout.tv_sec = WAIT_TIMEOUT;
+        timeout.tv_nsec = WAIT_TIMEOUT;
+        if (semtimedop(sem_id, &sops, 1, &timeout) != 0)
         {
             perror("send timeout error 2\n");
             clean_sem_shm(shm_id, sem_id);
@@ -506,7 +495,7 @@ int SendFile(const char *file_name)
     return EXIT_SUCCESS;
 }
 
-/* pid_t GetReceiverPId()
+pid_t GetReceiverPId()
 {
     // open fifo and read pid_t form pipe
     int fd_global = open(fifo_start_global_name, O_RDONLY | O_NDELAY); // fd of FIFO
@@ -532,4 +521,4 @@ int SendFile(const char *file_name)
         return -1;
     }
     return receiver_pid;
-} */
+}
