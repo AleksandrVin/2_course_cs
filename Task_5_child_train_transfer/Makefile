@@ -1,19 +1,16 @@
 CC=gcc
-CFLAGS=-g -Wall -std=c11 -O0 -lm -m64
+CFLAGS=-g -Wall -std=c11 -O0 -m64
+LDLIBS=-lm
 
 P=file_transfer
 
 all: $(P)
 
 .c:
-	$(CC) $(CFLAGS) $< -o $@.elf64
+	$(CC) $(CFLAGS) $(LDFLAGS) $< -o $@.elf64 $(LDLIBS)
 
-
-run_r: $(P)
-	./$<.elf64 -receive 
-
-run_s: $(P)
-	./$<.elf64 -send test.txt
+run: $(P)
+	./$<.elf64 10 test.txt
 	
 
 clean:
