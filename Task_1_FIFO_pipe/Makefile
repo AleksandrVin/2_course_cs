@@ -5,7 +5,9 @@ P=file_transfer
 
 P2=file_comparator
 
-all: $(P) $(P2)
+P3=test_code_fifo
+
+all: $(P) $(P2) $(P3)
 
 .c:
 	$(CC) $(CFLAGS) $< -o $@.elf64
@@ -19,7 +21,9 @@ run_s: $(P)
 
 run_comp: $(P2)
 	./$<.elf64 mkfifo.txt mkfifo.txt
-	
+
+run_fifo: $(P3)
+	./$<.elf64 
 
 clean:
 	$(RM) *.elf64

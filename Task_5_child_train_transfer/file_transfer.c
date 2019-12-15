@@ -187,7 +187,7 @@ int main(int argc, char **argv)
  */
 int ChildFunc(struct child_stuff child_stuff_complete)
 {
-    fd_set rfds;
+    /* fd_set rfds;
     struct timeval tv;
     int retval;
 
@@ -213,7 +213,8 @@ int ChildFunc(struct child_stuff child_stuff_complete)
     }
 
     // reading from sender
-    char *buff = (char *)calloc(child_stuff_complete.buff_size, sizeof(char));
+    char *buff = (char *)calloc(child_stuff_complete.buff_size, sizeof(char)); */
+    char buff[BUFF_MAX_SIZE];
     if (buff < 0)
     {
         perror("can't calloc buff in child\n");
@@ -224,7 +225,7 @@ int ChildFunc(struct child_stuff child_stuff_complete)
     int write_amount = 0;
     do
     {
-        read_amount = read(child_stuff_complete.fd_in, buff, child_stuff_complete.buff_size);
+        read_amount = read(child_stuff_complete.fd_in, buff, BUFF_MAX_SIZE);
         if (read_amount < 0)
         {
             perror("Error in reading occurred int child\n");
