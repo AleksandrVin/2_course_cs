@@ -43,18 +43,18 @@
 #define SHM_MEM_SIZE (4096 - sizeof(int))
 #define WRITE_AMOUNT_SIZE sizeof(int)
 
-#define SEM_NUM_AMOUNT 5
+#define SEM_NUM_AMOUNT 6
 
 #define SEM_NUM_WR_MUTEX 0
 #define SEM_NUM_EMPTY 1
 #define SEM_NUM_FULL 2
 #define SEM_NUM_S_DEATH 3
 #define SEM_NUM_R_DEATH 4
+#define SEM_NUM_INIT 5
 
 const char mode_send[] = "-send";
 const char mode_receive[] = "-receive";
 
-const char fifo_start_global_name[] = "/tmp/global_start_process_task_3.fifo";
 const char shm_mem_name[] = "/tmp/shm_mem_alek_3.shmmem";
 const char sem_global_acces_to_shmmem_file[] = "/tmp/sem_global_access_to_shmmem_file.sem";
 
@@ -129,10 +129,7 @@ int ReceiveFile()
     }
     close(sem_key_file_fd);
 
-    // init shm_mem
-    pid_t receiver_pid = getpid();
-
-    key_t key_shm = ftok(shm_mem_name, receiver_pid);
+    key_t key_shm = ftok(shm_mem_name, 0);
     if (key_shm == -1)
     {
         perror("unable to ftok key for smh\n");
@@ -156,7 +153,7 @@ int ReceiveFile()
     }
 
     // init sem
-    key_t key_sem = ftok(sem_global_acces_to_shmmem_file, receiver_pid);
+    key_t key_sem = ftok(sem_global_acces_to_shmmem_file, 0);
     if (key_sem == -1)
     {
         perror("unable to ftok key for sem\n");
@@ -167,51 +164,28 @@ int ReceiveFile()
     int sem_id = semget(key_sem, SEM_NUM_AMOUNT, IPC_CREAT | 0666);
     if (sem_id == -1)
     {
-        perror("can't create sem array\n");
+        perror("can't create sem array or sem already exist\n");
         clean_sem_shm(shm_id, sem_id);
         exit(EXIT_FAILURE);
     }
 
-    // sender process waits for parent
-    // global fifo for synchronization
-    int fd_fifo_global = open(fifo_start_global_name, O_RDWR | O_NDELAY); // fd of FIFO
-
-    if (fd_fifo_global < 0)
-    {
-        umask(0); // set mask to 0000
-        if (mkfifo(fifo_start_global_name, 0600) != 0)
-        {
-            perror("can't create FIFO_global\n");
-            clean_sem_shm(shm_id, sem_id);
-            exit(EXIT_FAILURE);
-        }
-        fd_fifo_global = open(fifo_start_global_name, O_RDWR | O_NDELAY);
-        if (fd_fifo_global < 0)
-        {
-            perror("can't open FIFO_global\n");
-            clean_sem_shm(shm_id, sem_id);
-            exit(EXIT_FAILURE);
-        }
-    }
-
-    if (write(fd_fifo_global, &receiver_pid, sizeof(pid_t)) != sizeof(pid_t))
-    {
-        {
-            perror("can't write init pid to FIFO\n");
-            clean_sem_shm(shm_id, sem_id);
-            exit(EXIT_FAILURE);
-        }
-    }
-
     // V(death)
-    struct sembuf sops;
-    sops.sem_flg = SEM_UNDO;
-    sops.sem_num = SEM_NUM_R_DEATH;
-    sops.sem_op = 1;
+    struct sembuf sops_3[3];
+    sops_3[0].sem_flg = IPC_NOWAIT;
+    sops_3[0].sem_num = SEM_NUM_R_DEATH;
+    sops_3[0].sem_op = 0;
 
-    if (semop(sem_id, &sops, 1) != 0)
+    sops_3[1].sem_flg = IPC_NOWAIT;
+    sops_3[1].sem_num = SEM_NUM_INIT;
+    sops_3[1].sem_op = 0;
+
+    sops_3[2].sem_flg = SEM_UNDO;
+    sops_3[2].sem_num = SEM_NUM_R_DEATH;
+    sops_3[2].sem_op = 1;
+
+    if (semop(sem_id, sops_3, 3) != 0)
     {
-        perror("can't set death sem\n");
+        perror("can't set receiver inits sem receiver already exists\n");
         exit(EXIT_FAILURE);
     }
 
@@ -222,42 +196,72 @@ int ReceiveFile()
         exit(EXIT_FAILURE);
     }
 
-    close(fd_fifo_global);
-    unlink(fifo_start_global_name);
-
+    bool interation = false;
     int amount_to_read = 0; // printed to stdout
     do
     {
-        // Z(death_sender)
-        sops.sem_flg = IPC_NOWAIT;
-        sops.sem_num = SEM_NUM_S_DEATH;
-        sops.sem_op = 0;
-        if (semop(sem_id, &sops, 1) == 0)
+        struct sembuf sops_5[5];
+        if(interation)
+        {
+// P(S)
+        sops_5[0].sem_flg = IPC_NOWAIT;
+        sops_5[0].sem_num = SEM_NUM_S_DEATH;
+        sops_5[0].sem_op = -1;
+        // V(S)
+        sops_5[1].sem_flg = 0;
+        sops_5[1].sem_num = SEM_NUM_S_DEATH;
+        sops_5[1].sem_op = 1;
+
+        // P(full)
+        sops_5[2].sem_flg = SEM_UNDO;
+        sops_5[2].sem_num = SEM_NUM_FULL;
+        sops_5[2].sem_op = -1;
+
+        // P(full)
+        sops_5[2].sem_flg = SEM_UNDO;
+        sops_5[2].sem_num = SEM_NUM_FULL;
+        sops_5[2].sem_op = -1;
+        // P(full)
+        sops_5[2].sem_flg = SEM_UNDO;
+        sops_5[2].sem_num = SEM_NUM_FULL;
+        sops_5[2].sem_op = -1;
+
+        if (semop(sem_id, sops_3, 3) != 0)
+        {
+            err_printf("sender error accrued\n");
+            clean_sem_shm(shm_id, sem_id);
+            exit(EXIT_FAILURE);
+        }
+        }
+        // P(S)
+        sops_3[0].sem_flg = IPC_NOWAIT;
+        sops_3[0].sem_num = SEM_NUM_S_DEATH;
+        sops_3[0].sem_op = -1;
+        // V(S)
+        sops_3[1].sem_flg = 0;
+        sops_3[1].sem_num = SEM_NUM_S_DEATH;
+        sops_3[1].sem_op = 1;
+
+        // P(full)
+        sops_3[2].sem_flg = SEM_UNDO;
+        sops_3[2].sem_num = SEM_NUM_FULL;
+        sops_3[2].sem_op = -1;
+
+        if (semop(sem_id, sops_3, 3) != 0)
         {
             err_printf("sender error accrued\n");
             clean_sem_shm(shm_id, sem_id);
             exit(EXIT_FAILURE);
         }
 
-        // P(full)
-        sops.sem_flg = 0;
-        sops.sem_num = SEM_NUM_FULL;
-        sops.sem_op = -1;
-
-        if (semop(sem_id, &sops, 1) != 0)
-        {
-            perror("wait for sender empty release timeout\n");
-            clean_sem_shm(shm_id, sem_id);
-            return EXIT_FAILURE;
-        }
         // P(mutex)
-        sops.sem_flg = 0;
-        sops.sem_num = SEM_NUM_WR_MUTEX;
-        sops.sem_op = -1;
+        sops_3[2].sem_flg = SEM_UNDO;
+        sops_3[2].sem_num = SEM_NUM_WR_MUTEX;
+        sops_3[2].sem_op = -1;
 
-        if (semop(sem_id, &sops, 1) != 0)
+        if (semop(sem_id, sops_3, 3) != 0)
         {
-            perror("wait for sender mutex realease timeout\n");
+            perror("wait for sender empty release error\n");
             clean_sem_shm(shm_id, sem_id);
             return EXIT_FAILURE;
         }
@@ -283,22 +287,42 @@ int ReceiveFile()
         }
 
         // V(mutex)
-        sops.sem_flg = 0;
-        sops.sem_num = SEM_NUM_WR_MUTEX;
-        sops.sem_op = 1;
+        sops_3[2].sem_flg = SEM_UNDO;
+        sops_3[2].sem_num = SEM_NUM_WR_MUTEX;
+        sops_3[2].sem_op = 1;
 
-        if (semop(sem_id, &sops, 1) != 0)
+        if (semop(sem_id, sops_3, 3) != 0)
         {
             perror("wait for sender mutex realease timeout\n");
             return EXIT_FAILURE;
         }
+        
+
+        // P(S)
+        sops_5[0].sem_flg = IPC_NOWAIT;
+        sops_5[0].sem_num = SEM_NUM_S_DEATH;
+        sops_5[0].sem_op = -1;
+        // V(S)
+        sops_5[1].sem_flg = 0;
+        sops_5[1].sem_num = SEM_NUM_S_DEATH;
+        sops_5[1].sem_op = 1;
 
         // V(empty)
-        sops.sem_flg = 0;
-        sops.sem_num = SEM_NUM_EMPTY;
-        sops.sem_op = 1;
+        sops_5[2].sem_flg = SEM_UNDO;
+        sops_5[2].sem_num = SEM_NUM_EMPTY;
+        sops_5[2].sem_op = 1;
 
-        if (semop(sem_id, &sops, 1) != 0)
+        // V(full)
+        sops_5[3].sem_flg = SEM_UNDO;
+        sops_5[3].sem_num = SEM_NUM_FULL;
+        sops_5[3].sem_op = 1;
+
+        // P(full)
+        sops_5[4].sem_flg = 0;
+        sops_5[4].sem_num = SEM_NUM_FULL;
+        sops_5[4].sem_op = -1;
+
+        if (semop(sem_id, sops_5, 5) != 0)
         {
             perror("wait for sender mutex realease timeout\n");
             return EXIT_FAILURE;
@@ -318,38 +342,29 @@ int ReceiveFile()
 int WaitForSender(int sem_id)
 {
     //set sem to the init values
-    struct sembuf sops;
-    // V(mutex)
-    sops.sem_flg = 0;
-    sops.sem_num = SEM_NUM_WR_MUTEX;
-    sops.sem_op = 1;
+    struct sembuf sops_4[4];
+    // P(I)
+    sops_4[0].sem_flg = 0;
+    sops_4[0].sem_num = SEM_NUM_INIT;
+    sops_4[0].sem_op = -1;
 
-    if (semop(sem_id, &sops, 1) != 0)
-    {
-        perror("can't set init value to start sending\n");
-        return EXIT_FAILURE;
-    }
+    // V(I)
+    sops_4[1].sem_flg = SEM_UNDO;
+    sops_4[1].sem_num = SEM_NUM_INIT;
+    sops_4[1].sem_op = 1;
 
-    // V(empty)
-    sops.sem_flg = SEM_UNDO;
-    sops.sem_num = SEM_NUM_EMPTY;
-    sops.sem_op = 1;
+    sops_4[2].sem_flg = SEM_UNDO;
+    sops_4[2].sem_num = SEM_NUM_WR_MUTEX;
+    sops_4[2].sem_op = 1;
 
-    if (semop(sem_id, &sops, 1) != 0)
-    {
-        perror("can't set init value to start sending\n");
-        return EXIT_FAILURE;
-    }
-
-    // wait to mutex be 0 by sender
-    sops.sem_flg = 0;
-    sops.sem_num = SEM_NUM_WR_MUTEX;
-    sops.sem_op = 0;
+    sops_4[3].sem_flg = SEM_UNDO;
+    sops_4[3].sem_num = SEM_NUM_EMPTY;
+    sops_4[3].sem_op = 1;
 
     struct timespec timeout;
     timeout.tv_sec = WAIT_TIMEOUT_LONG;
     timeout.tv_nsec = WAIT_TIMEOUT_LONG;
-    if (semtimedop(sem_id, &sops, 1, &timeout) != 0)
+    if (semtimedop(sem_id, sops_4, 4, &timeout) != 0)
     {
         perror("no sender detected\n");
         return EXIT_FAILURE;
@@ -378,26 +393,18 @@ int SendFile(const char *file_name)
         exit(EXIT_FAILURE);
     }
 
-    // get pid from receiver
-    pid_t receiver_pid = GetReceiverPId();
-    if (receiver_pid < 0)
-    {
-        perror("can't get receiver pid\n");
-        return EXIT_FAILURE;
-    }
-
     // init shm
-    key_t key_shm = ftok(shm_mem_name, receiver_pid);
+    key_t key_shm = ftok(shm_mem_name, 0);
     if (key_shm == -1)
     {
         perror("unable to ftok key for smh\n");
         exit(EXIT_FAILURE);
     }
 
-    int shm_id = shmget(key_shm, SHM_MEM_SIZE + WRITE_AMOUNT_SIZE, IPC_CREAT | 0666);
+    int shm_id = shmget(key_shm, SHM_MEM_SIZE + WRITE_AMOUNT_SIZE, 0666);
     if (shm_id == -1)
     {
-        perror("can't create shm_mem segmet\n");
+        perror("can't shm_mem segmet no receiver\n");
         clean_sem_shm(shm_id, 0);
         exit(EXIT_FAILURE);
     }
@@ -411,7 +418,7 @@ int SendFile(const char *file_name)
     }
 
     // init sem
-    key_t key_sem = ftok(sem_global_acces_to_shmmem_file, receiver_pid);
+    key_t key_sem = ftok(sem_global_acces_to_shmmem_file, 0);
     if (key_sem == -1)
     {
         perror("unable to ftok key for sem\n");
@@ -419,63 +426,124 @@ int SendFile(const char *file_name)
         exit(EXIT_FAILURE);
     }
 
-    int sem_id = semget(key_sem, SEM_NUM_AMOUNT, IPC_CREAT | 0666);
+    int sem_id = semget(key_sem, SEM_NUM_AMOUNT, 0666);
     if (sem_id == -1)
     {
-        perror("can't create sem array\n");
+        perror("can't create sem array no receiver\n");
         clean_sem_shm(shm_id, sem_id);
         exit(EXIT_FAILURE);
     }
 
-    struct sembuf sops;
+    struct sembuf sops_6[6];
 
-    // V(death)
-    sops.sem_flg = SEM_UNDO;
-    sops.sem_num = SEM_NUM_S_DEATH;
-    sops.sem_op = 1;
+    // Z(I)
+    sops_6[0].sem_flg = IPC_NOWAIT;
+    sops_6[0].sem_num = SEM_NUM_INIT;
+    sops_6[0].sem_op = 0;
+    // Z(R)
+    sops_6[1].sem_flg = IPC_NOWAIT;
+    sops_6[1].sem_num = SEM_NUM_S_DEATH;
+    sops_6[1].sem_op = 0;
+    // P(R)
+    sops_6[2].sem_flg = IPC_NOWAIT;
+    sops_6[2].sem_num = SEM_NUM_R_DEATH;
+    sops_6[2].sem_op = -1;
+    // V(R)
+    sops_6[3].sem_flg = 0;
+    sops_6[3].sem_num = SEM_NUM_R_DEATH;
+    sops_6[3].sem_op = 1;
+    // V(I)
+    sops_6[4].sem_flg = SEM_UNDO;
+    sops_6[4].sem_num = SEM_NUM_INIT;
+    sops_6[4].sem_op = 1;
+    // V(S)
+    sops_6[5].sem_flg = SEM_UNDO;
+    sops_6[5].sem_num = SEM_NUM_S_DEATH;
+    sops_6[5].sem_op = 1;
 
-    if (semop(sem_id, &sops, 1) != 0)
+    if (semop(sem_id, sops_6, 6) != 0)
     {
-        perror("can't set death sem\n");
+        perror("sender can't init\n");
         exit(EXIT_FAILURE);
     }
 
     printf("\t Sending \n\n");
 
+    bool iteration = false;
     int read_amount = 0;
     do
     {
 
-        // Z(death_receiver)
-        sops.sem_flg = IPC_NOWAIT;
-        sops.sem_num = SEM_NUM_R_DEATH;
-        sops.sem_op = 0;
-        if (semop(sem_id, &sops, 1) == 0)
+        struct sembuf sops_3[3];
+        struct sembuf sops_5[5];
+
+        if (iteration)
         {
-            err_printf("receiver error accrued\n");
-            clean_sem_shm(shm_id, sem_id);
-            exit(EXIT_FAILURE);
+            // P(R)
+            sops_5[0].sem_flg = IPC_NOWAIT;
+            sops_5[0].sem_num = SEM_NUM_R_DEATH;
+            sops_5[0].sem_op = -1;
+
+            // V(R)
+            sops_5[1].sem_flg = 0;
+            sops_5[1].sem_num = SEM_NUM_R_DEATH;
+            sops_5[1].sem_op = 1;
+
+            // P(empty)
+            sops_5[2].sem_flg = SEM_UNDO;
+            sops_5[2].sem_num = SEM_NUM_EMPTY;
+            sops_5[2].sem_op = -1;
+
+            // V(full)
+            sops_5[3].sem_flg = 0;
+            sops_5[3].sem_num = SEM_NUM_EMPTY;
+            sops_5[3].sem_op = 1;
+
+            // P(full)
+            sops_5[4].sem_flg = SEM_UNDO;
+            sops_5[4].sem_num = SEM_NUM_EMPTY;
+            sops_5[4].sem_op = -1;
+
+            if (semop(sem_id, sops_5, 5) != 0)
+            {
+                perror("send error 1\n");
+                clean_sem_shm(shm_id, sem_id);
+                return EXIT_FAILURE;
+            }
+        }
+        else
+        {
+            // P(R)
+            sops_3[0].sem_flg = IPC_NOWAIT;
+            sops_3[0].sem_num = SEM_NUM_R_DEATH;
+            sops_3[0].sem_op = -1;
+
+            // V(R)
+            sops_3[1].sem_flg = 0;
+            sops_3[1].sem_num = SEM_NUM_R_DEATH;
+            sops_3[1].sem_op = 1;
+
+            // P(empty)
+            sops_3[2].sem_flg = SEM_UNDO;
+            sops_3[2].sem_num = SEM_NUM_EMPTY;
+            sops_3[2].sem_op = -1;
+
+            if (semop(sem_id, sops_3, 3) != 0)
+            {
+                perror("send error 1\n");
+                clean_sem_shm(shm_id, sem_id);
+                return EXIT_FAILURE;
+            }
         }
 
-        // P(empty)
-        sops.sem_flg = 0;
-        sops.sem_num = SEM_NUM_EMPTY;
-        sops.sem_op = -1;
-
-        if (semop(sem_id, &sops, 1) != 0)
-        {
-            perror("send timeout error 1\n");
-            clean_sem_shm(shm_id, sem_id);
-            return EXIT_FAILURE;
-        }
+        iteration = true;
 
         // P(mutex)
-        sops.sem_flg = 0;
-        sops.sem_num = SEM_NUM_WR_MUTEX;
-        sops.sem_op = -1;
+        sops_3[2].sem_flg = SEM_UNDO;
+        sops_3[2].sem_num = SEM_NUM_WR_MUTEX;
+        sops_3[2].sem_op = -1;
 
-
-        if (semop(sem_id, &sops, 1) != 0)
+        if (semop(sem_id, sops_3, 3) != 0)
         {
             perror("send timeout error 2\n");
             clean_sem_shm(shm_id, sem_id);
@@ -494,23 +562,43 @@ int SendFile(const char *file_name)
         }
 
         // V(mutex)
-        sops.sem_flg = 0;
-        sops.sem_num = SEM_NUM_WR_MUTEX;
-        sops.sem_op = 1;
+        sops_3[2].sem_flg = SEM_UNDO;
+        sops_3[2].sem_num = SEM_NUM_WR_MUTEX;
+        sops_3[2].sem_op = 1;
 
-        if (semop(sem_id, &sops, 1) != 0)
+        if (semop(sem_id, sops_3, 3) != 0)
         {
             perror("send timeout error 1\n");
             clean_sem_shm(shm_id, sem_id);
             return EXIT_FAILURE;
         }
 
-        // V(full)
-        sops.sem_flg = 0;
-        sops.sem_num = SEM_NUM_FULL;
-        sops.sem_op = 1;
+        // P(R)
+        sops_5[0].sem_flg = IPC_NOWAIT;
+        sops_5[0].sem_num = SEM_NUM_R_DEATH;
+        sops_5[0].sem_op = -1;
 
-        if (semop(sem_id, &sops, 1) != 0)
+        // V(R)
+        sops_5[1].sem_flg = 0;
+        sops_5[1].sem_num = SEM_NUM_R_DEATH;
+        sops_5[1].sem_op = 1;
+
+        // V(full)
+        sops_5[2].sem_flg = SEM_UNDO;
+        sops_5[2].sem_num = SEM_NUM_FULL;
+        sops_5[2].sem_op = 1;
+
+        // V(empty)
+        sops_5[3].sem_flg = SEM_UNDO;
+        sops_5[3].sem_num = SEM_NUM_EMPTY;
+        sops_5[3].sem_op = 1;
+
+        // P(empty)
+        sops_5[4].sem_flg = 0;
+        sops_5[4].sem_num = SEM_NUM_EMPTY;
+        sops_5[4].sem_op = 1;
+
+        if (semop(sem_id, sops_5, 5) != 0)
         {
             perror("send timeout error 2\n");
             clean_sem_shm(shm_id, sem_id);
@@ -522,32 +610,4 @@ int SendFile(const char *file_name)
 
     printf("\t Done \n");
     return EXIT_SUCCESS;
-}
-
-pid_t GetReceiverPId()
-{
-    // open fifo and read pid_t form pipe
-    int fd_global = open(fifo_start_global_name, O_RDONLY | O_NDELAY); // fd of FIFO
-    if (fd_global < 0)
-    {
-        perror("can't open fifo to receive pid from receiver\n");
-        return -1;
-    }
-
-    pid_t receiver_pid = -1;
-    if (read(fd_global, &receiver_pid, sizeof(pid_t)) != sizeof(pid_t))
-    {
-        perror("no sender found\n");
-        close(fd_global);
-        return -1;
-    }
-
-    close(fd_global);
-
-    if (receiver_pid < 0)
-    {
-        perror("bad pid from receiver\n");
-        return -1;
-    }
-    return receiver_pid;
 }

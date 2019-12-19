@@ -10,7 +10,7 @@ all: $(P)
 	$(CC) $(CFLAGS) $(LDFLAGS) $< -o $@.elf64 $(LDLIBS)
 
 run: $(P)
-	./$<.elf64 4 test.txt
+	./$<.elf64 5 test.txt
 	
 
 clean:

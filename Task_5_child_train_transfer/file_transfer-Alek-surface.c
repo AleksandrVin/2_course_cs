@@ -45,7 +45,7 @@
 #define BUFF_CALC_BASE 3
 #define BUFF_CALC_MULTIPLIER 0x400 // 1k byte
 
-#define BUFF_CHILD 512
+#define BUFF_CHILD 0x20000
 
 #define ANSI_COLOR_RED "\x1b[31m"
 #define ANSI_COLOR_GREEN "\x1b[32m"
@@ -67,10 +67,17 @@ struct parent_staff // amount of parent stuff buff is child_stuff - 1
     int fd_in;
     int fd_out;
 
-    char *buf;
-    char *cur_read;
-    int amount_in_buff;
-    int size;
+    // circular buffer( ring buffer )
+    // buff and queue variables  \\  |************************0000000000000000000000000000000000| where ****** - data , 00000 - free space
+    //                               | - buff(start_pos)     | - buff + amount_in_buff         | - buff + buff_size
+    // buff can be like this     \\  |0000000000000000000000000000***************000000000000000|
+    //                                                           | - start_pos  | - start_pos + amount_in_buff
+    // buff is organized like queue, but multiple byte per read|write allowed
+    // this is used to optimise memory usage of buff, because simple one read per write can't utilize large buff
+    char *buff;
+    int buff_size;
+    char *head;
+    char *tail;
 };
 
 int buff_get_free_space_for_linear_write(const struct parent_staff *parent_data);
@@ -78,7 +85,7 @@ int buff_get_amount_for_linear_read(const struct parent_staff *parent_data);
 
 int Buff_CalculateSize(int child_amount, int child_num);
 
-int ChildFunc(const struct child_stuff child_stuff_complete);
+int ChildFunc(int n, const struct child_stuff child_stuff_complete);
 
 int main(int argc, char **argv)
 {
@@ -102,12 +109,6 @@ int main(int argc, char **argv)
         return -1;
     }
 
-    if(child_amount > 510)
-    {
-        err_printf("amount of children to much\n");
-        exit(EXIT_FAILURE);
-    }
-
     // open file to print
     int fd_of_file = open(argv[2], O_RDONLY);
     if (fd_of_file == -1)
@@ -122,6 +123,18 @@ int main(int argc, char **argv)
     {
         perror("can't calloc parent buff\n");
         exit(EXIT_FAILURE);
+    }
+    for (size_t i = 0; i < child_amount - 1; i++)
+    {
+        buff_parent_staff[i].buff_size = Buff_CalculateSize(child_amount, i);
+        buff_parent_staff[i].buff = (char *)calloc(buff_parent_staff[i].buff_size, sizeof(char));
+        if (buff_parent_staff[i].buff < 0)
+        {
+            perror("can't calloc mem for buff in parent\n");
+            exit(EXIT_FAILURE);
+        }
+        buff_parent_staff[i].tail = buff_parent_staff[i].buff;
+        buff_parent_staff[i].head = buff_parent_staff[i].buff;
     }
 
     int pipefd_1[2];
@@ -140,7 +153,7 @@ int main(int argc, char **argv)
             }
             child_stuff_complete.fd_in = pipefd_1[PIPE_READ_FD];
             buff_parent_staff[i - 1].fd_out = pipefd_1[PIPE_WRITE_FD];
-           // err_printf(ANSI_COLOR_CYAN "pipe 1 for %lu" ANSI_COLOR_RESET, i);
+            //err_printf(ANSI_COLOR_CYAN "pipe 1 for %lu" ANSI_COLOR_RESET, i);
         }
         else // if first
         {
@@ -177,7 +190,7 @@ int main(int argc, char **argv)
                     perror("can't close file in parent\n");
                     exit(EXIT_FAILURE);
                 }
-               // err_printf(ANSI_COLOR_MAGENTA "fd of file close for %lu\n" ANSI_COLOR_RESET, i);
+                //err_printf(ANSI_COLOR_MAGENTA "fd of file close for %lu\n" ANSI_COLOR_RESET, i);
             }
             else if (i == 0)
             {
@@ -196,6 +209,9 @@ int main(int argc, char **argv)
                     exit(EXIT_FAILURE);
                 }
                 //err_printf(ANSI_COLOR_MAGENTA "pipe 1 closed read for %lu\n" ANSI_COLOR_RESET, i);
+
+                // set to non_block
+                fcntl(buff_parent_staff[i].fd_out, F_SETFL);
             }
             else
             {
@@ -204,7 +220,7 @@ int main(int argc, char **argv)
                     perror("can't close fd in parent\n");
                     exit(EXIT_FAILURE);
                 }
-                //err_printf(ANSI_COLOR_MAGENTA "pipe 1 closed for read and 2 for write for %lu\n" ANSI_COLOR_RESET, i);
+                // err_printf(ANSI_COLOR_MAGENTA "pipe 1 closed for read and 2 for write for %lu\n" ANSI_COLOR_RESET, i);
             }
         }
         else if (pid != 0)
@@ -216,63 +232,71 @@ int main(int argc, char **argv)
         // for child
         if (pid == 0)
         {
-            for (size_t j = 0; j <= i; j++)
+            for (size_t j = 0; j < i; j++)
             {
-                if (i == 0 && i == (child_amount - 1)) // if first and last
-                {
-                }
-                else if (i == 0) // if first
+                if (j == 0)
                 {
                     if (close(buff_parent_staff[j].fd_in) == -1)
                     {
-                        perror("can't close fd_2 read in child\n");
+                        perror("can't free parent buff");
                         exit(EXIT_FAILURE);
                     }
-                    //err_printf(ANSI_COLOR_RED "pipe 2 closed for read child %lu" ANSI_COLOR_RESET, i);
                 }
-                else if (i == (child_amount - 1)) // if last
-                {
-                    if (close(buff_parent_staff[j - 1].fd_out) == -1)
-                    {
-                        perror("can't close fd_2 read in child\n");
-                        exit(EXIT_FAILURE);
-                    }
-                    //err_printf(ANSI_COLOR_RED "pipe 1 closed for write child %lu" ANSI_COLOR_RESET, i);
-                }
-                else // if not first and not last
+                else
                 {
                     if (close(buff_parent_staff[j - 1].fd_out) == -1 || close(buff_parent_staff[j].fd_in) == -1)
                     {
-                        perror("can't close fd in child\n");
+                        perror("can't close parent fd 2\n");
                         exit(EXIT_FAILURE);
                     }
-                    //err_printf(ANSI_COLOR_RED "pipe 1 closed for write and 2 for read child %lu" ANSI_COLOR_RESET, i);
                 }
+                //err_printf(ANSI_COLOR_YELLOW "closed for %lu child parent staff" ANSI_COLOR_RESET, j);
+            }
+            if (i == 0 && i == (child_amount - 1))
+            {
+            }                // if first
+            else if (i == 0) // if first
+            {
+                if (close(pipefd_2[PIPE_READ_FD]) == -1)
+                {
+                    perror("can't close fd_2  1 read in child\n");
+                    exit(EXIT_FAILURE);
+                }
+                //err_printf(ANSI_COLOR_RED "pipe 2 closed for read child %lu" ANSI_COLOR_RESET, i);
+            }
+            else if (i == (child_amount - 1)) // if last
+            {
+                if (close(pipefd_1[PIPE_WRITE_FD]) == -1)
+                {
+                    perror("can't close fd_2 read 2 in child\n");
+                    exit(EXIT_FAILURE);
+                }
+                //err_printf(ANSI_COLOR_RED "pipe 1 closed for write child %lu" ANSI_COLOR_RESET, i);
+            }
+            else // if not first and not last
+            {
+                if (close(pipefd_1[PIPE_WRITE_FD]) == -1 || close(pipefd_2[PIPE_READ_FD]) == -1)
+                {
+                    perror("can't close fd in child\n");
+                    exit(EXIT_FAILURE);
+                }
+                //err_printf(ANSI_COLOR_RED "pipe 1 closed for write and 2 for read child %lu" ANSI_COLOR_RESET, i);
             }
 
             //pid_t local_pid = getpid();
             //printf("\tPid of this child is %d and i'm %lu\n", local_pid, i);
-            return ChildFunc(child_stuff_complete);
+            for (size_t i = 0; i < child_amount - 1; i++)
+            {
+                free(buff_parent_staff[i].buff);
+            }
+            free(buff_parent_staff);
+
+            return ChildFunc(i, child_stuff_complete);
             // close process
         }
     }
 
-    for (size_t i = 0; i < child_amount - 1; i++)
-    {
-        buff_parent_staff[i].size = Buff_CalculateSize(child_amount, i);
-        buff_parent_staff[i].buf = (char *)calloc(buff_parent_staff[i].size, sizeof(char));
-        if (buff_parent_staff[i].buf < 0)
-        {
-            perror("can't calloc mem for buff in parent\n");
-            exit(EXIT_FAILURE);
-        }
-        fcntl(buff_parent_staff[i].fd_out, F_SETFL, O_NONBLOCK);
-        fcntl(buff_parent_staff[i].fd_in, F_SETFL, O_NONBLOCK);
-        buff_parent_staff[i].amount_in_buff = 0;
-        buff_parent_staff[i].cur_read = buff_parent_staff[i].buf;
-    }
-
-    // TODO main algorithm ( crazy stuff )
+    //  main algorithm ( crazy stuff )
     fd_set rfds;
     fd_set wfds;
     int first_to_exit_child = 0; // child are waiting to exit first. If exit another child -> error. If this child -> wait for next child to exit
@@ -293,7 +317,7 @@ int main(int argc, char **argv)
 
         for (size_t i = first_to_exit_child; i < child_amount - 1; i++)
         {
-            if (buff_parent_staff[i].amount_in_buff == 0) // buff is empty
+            if (buff_get_free_space_for_linear_write(&(buff_parent_staff[i]))) // if there is space in buff
             {
                 //err_printf("set to wait for read %lu", i);
                 FD_SET(buff_parent_staff[i].fd_in, &rfds);
@@ -302,9 +326,12 @@ int main(int argc, char **argv)
                     max_fd = buff_parent_staff[i].fd_in;
                 }
             }
-            else // if data present
+        }
+        for (size_t i = first_to_exit_child; i < child_amount - 1; i++)
+        {
+            if (buff_get_amount_for_linear_read(&(buff_parent_staff[i]))) // if there is data in buff
             {
-                //err_printf("set to wait for write %lu", i);
+                //err_printf("set to wait for write %lu with read space %d", i, buff_get_amount_for_linear_read(&(buff_parent_staff[i])));
                 FD_SET(buff_parent_staff[i].fd_out, &wfds);
                 if (buff_parent_staff[i].fd_out > max_fd)
                 {
@@ -325,36 +352,69 @@ int main(int argc, char **argv)
             if (FD_ISSET(buff_parent_staff[i].fd_in, &rfds))
             {
                 //err_printf("reading %lu\n", i);
-                int free_space_in_buff = buff_parent_staff[i].size; //  buff_get_free_space_for_linear_write((&(buff_parent_staff[i])));
-                int read_amount = read(buff_parent_staff[i].fd_in, buff_parent_staff[i].buf, free_space_in_buff);
-                if (read_amount == 0) // child exit
+                int free_space_in_buff = buff_get_free_space_for_linear_write((&(buff_parent_staff[i])));
+                if (free_space_in_buff == 0)
                 {
-                    if (i == first_to_exit_child)
+                    err_printf("error in free size calc\n");
+                    exit(EXIT_FAILURE);
+                }
+                else if (free_space_in_buff > 0)
+                {
+                    int read_amount = read(buff_parent_staff[i].fd_in, buff_parent_staff[i].head, free_space_in_buff);
+                    if (read_amount == 0) // child exit
                     {
-                        first_to_exit_child++;
-                        /* if (close(buff_parent_staff[i].fd_in) == -1)
+                        if (i == first_to_exit_child)
+                        {
+                            first_to_exit_child++;
+                            if (close(buff_parent_staff[i].fd_in) == -1)
                             {
                                 perror("can't close fd to for read\n");
                                 exit(EXIT_FAILURE);
-                            } */
-                        //err_printf(ANSI_COLOR_MAGENTA "++" ANSI_COLOR_RESET);
+                            } 
+                            //err_printf(ANSI_COLOR_MAGENTA "++" ANSI_COLOR_RESET);
+                        }
+                        else
+                        {
+                            err_printf("non first child had exited\n");
+                            exit(EXIT_FAILURE);
+                        }
                     }
-                    else
+                    if (read_amount < 0)
                     {
-                        //err_printf("non first child had exited\n");
+                        perror("error in read in paren\n");
                         exit(EXIT_FAILURE);
                     }
-                }
-                if (read_amount < 0)
-                {
-                    perror("error in read in paren\n");
-                    exit(EXIT_FAILURE);
-                }
 
-                // set ring buff
-                buff_parent_staff[i].amount_in_buff = read_amount;
-                //err_printf("exit_space in buff: %d and read_amount: %d\n", free_space_in_buff, read_amount);
-                //err_printf("amount for linear read is %d\n", buff_parent_staff[i].amount_in_buff);
+                    // set ring buff
+                    buff_parent_staff[i].head += read_amount;
+                    //err_printf("exit_space in buff: %d and read_amount: %d\n", free_space_in_buff, read_amount);
+                    //err_printf("amount for linear read is %d\n", buff_get_amount_for_linear_read(&(buff_parent_staff[i])));
+                }
+                else
+                {
+                    int read_amount = read(buff_parent_staff[i].fd_in, buff_parent_staff[i].buff, -free_space_in_buff);
+                    if (read_amount == 0) // child exit
+                    {
+                        if (i == first_to_exit_child)
+                        {
+                            first_to_exit_child++;
+                        }
+                        else
+                        {
+                            err_printf("non first child had exited\n");
+                            exit(EXIT_FAILURE);
+                        }
+                    }
+                    if (read_amount < 0)
+                    {
+                        perror("error in read in paren\n");
+                    }
+
+                    // set ring buff
+                    buff_parent_staff[i].head = buff_parent_staff[i].buff + read_amount;
+                    buff_parent_staff[i].tail = buff_parent_staff[i].buff;
+                    //err_printf("space in buff: %d and read_amount: %d , for read is %d", free_space_in_buff, read_amount, buff_get_amount_for_linear_read(&(buff_parent_staff[i])));
+                }
             }
         }
         for (size_t i = 0; i < child_amount - 1; i++)
@@ -362,39 +422,43 @@ int main(int argc, char **argv)
             if (FD_ISSET(buff_parent_staff[i].fd_out, &wfds))
             {
                 //err_printf("writing %lu\n", i);
-                int amount_to_read = buff_parent_staff[i].amount_in_buff; //  buff_get_amount_for_linear_read(&(buff_parent_staff[i]));
-
-                if (amount_to_read > 0)
+                int amount_to_read = buff_get_amount_for_linear_read(&(buff_parent_staff[i]));
+                if (amount_to_read == 0)
                 {
-                    int write_amount = write(buff_parent_staff[i].fd_out, buff_parent_staff[i].cur_read, amount_to_read);
-                    if (write_amount <= 0)
+                    err_printf("error in calc space for read\n");
+                    // exit(EXIT_FAILURE);
+                }
+                else if (amount_to_read > 0)
+                {
+                    int write_amount = write(buff_parent_staff[i].fd_out, buff_parent_staff[i].tail, amount_to_read);
+                    if (amount_to_read <= 0)
                     {
                         perror("error in write to child in parent\n");
                         exit(EXIT_FAILURE);
                     }
-                    if (write_amount < amount_to_read)
-                    {
-                        buff_parent_staff[i].cur_read += write_amount;
-                        buff_parent_staff[i].amount_in_buff -= write_amount;
-                    }
-                    else
-                    {
-                        buff_parent_staff[i].cur_read = buff_parent_staff[i].buf;;
-                        buff_parent_staff[i].amount_in_buff = 0;
-                    }
 
-                    //err_printf("writted %d", write_amount);
+                    // set ring buff
+                    buff_parent_staff[i].tail += write_amount;
+                    //err_printf("writted N1 %d with amount %d", write_amount, amount_to_read);
                 }
                 else
                 {
-                    err_printf("no to write\n");
-                    exit(EXIT_FAILURE);
+                    int write_amount = write(buff_parent_staff[i].fd_out, buff_parent_staff[i].buff, -amount_to_read);
+                    if (amount_to_read <= 0)
+                    {
+                        perror("error in write to child in parent 2");
+                        exit(EXIT_FAILURE);
+                    }
+
+                    // set ring buff
+                    buff_parent_staff[i].tail = buff_parent_staff[i].buff + write_amount;
+                    //err_printf("writted N2 %d with amount %d", write_amount, amount_to_read);
                 }
             }
         }
         if (first_to_exit_child > 0)
         {
-            if (buff_parent_staff[first_to_exit_child - 1].amount_in_buff == 0)
+            if (buff_get_amount_for_linear_read(&(buff_parent_staff[first_to_exit_child - 1])) == 0)
             {
                 if (close(buff_parent_staff[first_to_exit_child - 1].fd_out))
                 {
@@ -405,12 +469,12 @@ int main(int argc, char **argv)
             }
         }
         //err_printf("fist to exit is: %lu and child_amount is: %d and linera read is: %d \n", first_to_exit_child, child_amount, buff_get_amount_for_linear_read(&(buff_parent_staff[child_amount - 2])));
-    } while (!(first_to_exit_child == (child_amount - 1) && buff_parent_staff[child_amount - 2].amount_in_buff == 0)); // last child waiting for exit and nothig to write
+    } while (!(first_to_exit_child == (child_amount - 1) && buff_get_amount_for_linear_read(&(buff_parent_staff[child_amount - 2])) == 0)); // last child waiting for exit and nothig to write
 
-    // free buffs
+    // free buff
     for (size_t i = 0; i < child_amount - 1; i++)
     {
-        free(buff_parent_staff[i].buf);
+        free(buff_parent_staff[i].buff);
     }
     free(buff_parent_staff);
 
@@ -419,17 +483,75 @@ int main(int argc, char **argv)
 }
 
 /**
+ * @brief calc free space in ring buff for linear write
+ * 
+ * @param parent_data 
+ * @return int ( -N if write available from start for N bytes or number of bytes in write from head, which can be written after head pointer )
+ */
+int buff_get_free_space_for_linear_write(const struct parent_staff *parent_data) // get how many bytes can be written to ring buffer after head pointer
+{
+    int space = parent_data->head - parent_data->tail;
+    if (space >= 0)
+    {
+        if (space > parent_data->buff_size)
+        {
+            err_printf("error in buffer");
+            exit(EXIT_FAILURE);
+        }
+        if (parent_data->head == parent_data->buff + parent_data->buff_size)
+        {
+            return (-(parent_data->tail - parent_data->buff)); // write from start
+        }
+        return parent_data->buff + parent_data->buff_size - parent_data->head; // write from head
+    }
+    else
+    {
+        return -space; // write after head
+    }
+}
+
+/**
+ * @brief calc space for liner read from ring buff
+ * 
+ * @param parent_data 
+ * @return int ( -N if read from start of buff or N if read from tail)
+ */
+int buff_get_amount_for_linear_read(const struct parent_staff *parent_data)
+{
+    int space = parent_data->head - parent_data->tail;
+    if (space >= 0)
+    {
+        if (space > parent_data->buff_size)
+        {
+            err_printf("error in buffer and space is %d", space);
+            exit(EXIT_FAILURE);
+        }
+        return space;
+    }
+    else
+    {
+        if (parent_data->tail == parent_data->buff + parent_data->buff_size)
+        {
+            return (-(parent_data->head - parent_data->buff));
+        }
+        return parent_data->buff + parent_data->buff_size - parent_data->tail;
+    }
+}
+
+/**
  * @brief function for childs
  * 
  * @param key_sem NO_SEM if no sem used, key of sem value if this is the first child in train 
  * @return int 
  */
-int ChildFunc(const struct child_stuff child_stuff_complete)
+int ChildFunc(int n, const struct child_stuff child_stuff_complete)
 {
+    (void)n;
     char buff[BUFF_CHILD];
 
     int read_amount = 0;
     int write_amount = 0;
+    
     do
     {
         read_amount = read(child_stuff_complete.fd_in, buff, BUFF_CHILD);
@@ -438,9 +560,7 @@ int ChildFunc(const struct child_stuff child_stuff_complete)
             perror("Error in reading occurred int child\n");
             exit(EXIT_FAILURE);
         }
-
-        //sleep(3);
-
+//sleep( 3   );
         write_amount = write(child_stuff_complete.fd_out, buff, read_amount);
         if (write_amount < 0)
         {
@@ -455,7 +575,7 @@ int ChildFunc(const struct child_stuff child_stuff_complete)
         }
     } while (read_amount > 0);
 
-    //err_printf(ANSI_COLOR_YELLOW "child exit" ANSI_COLOR_RESET);
+    err_printf(ANSI_COLOR_CYAN "child exit\n" ANSI_COLOR_RESET);
 
     exit(EXIT_SUCCESS);
 }

@@ -154,7 +154,7 @@ int ReceiveFile()
 
     // init sem
     key_t key_sem = ftok(sem_global_acces_to_shmmem_file, 0);
-    if(key_sem == -1)
+    if (key_sem == -1)
     {
         perror("unable to ftok key for sem\n");
         clean_sem_shm(shm_id, 0);
@@ -207,9 +207,8 @@ int ReceiveFile()
         sops_3[1].sem_flg = 0;
         sops_3[1].sem_num = SEM_NUM_S_DEATH;
         sops_3[1].sem_op = 1;
-
         // P(full)
-        sops_3[2].sem_flg = SEM_UNDO;
+        sops_3[2].sem_flg = 0;
         sops_3[2].sem_num = SEM_NUM_FULL;
         sops_3[2].sem_op = -1;
 
@@ -264,7 +263,7 @@ int ReceiveFile()
         }
 
         // V(empty)
-        sops_3[2].sem_flg = SEM_UNDO;
+        sops_3[2].sem_flg = 0;
         sops_3[2].sem_num = SEM_NUM_EMPTY;
         sops_3[2].sem_op = 1;
 
@@ -276,7 +275,9 @@ int ReceiveFile()
 
     } while (amount_to_read > 0);
 
-    return clean_sem_shm(shm_id, sem_id);
+    
+
+    return (clean_sem_shm(shm_id, sem_id) ? EXIT_SUCCESS : EXIT_FAILURE);
 }
 
 /**
@@ -290,19 +291,18 @@ int WaitForSender(int sem_id)
     //set sem to the init values
     struct sembuf sops_4[4];
     // P(I)
-    sops_4[0].sem_flg = 0;
+    sops_4[0].sem_flg = SEM_UNDO;
     sops_4[0].sem_num = SEM_NUM_INIT;
     sops_4[0].sem_op = -1;
-
     // V(I)
     sops_4[1].sem_flg = SEM_UNDO;
     sops_4[1].sem_num = SEM_NUM_INIT;
     sops_4[1].sem_op = 1;
-
+    // V(mutex)
     sops_4[2].sem_flg = SEM_UNDO;
     sops_4[2].sem_num = SEM_NUM_WR_MUTEX;
     sops_4[2].sem_op = 1;
-
+    // v(empty)
     sops_4[3].sem_flg = SEM_UNDO;
     sops_4[3].sem_num = SEM_NUM_EMPTY;
     sops_4[3].sem_op = 1;
@@ -380,34 +380,42 @@ int SendFile(const char *file_name)
         exit(EXIT_FAILURE);
     }
 
-    struct sembuf sops_6[6];
+    struct sembuf sops_8[8];
 
     // Z(I)
-    sops_6[0].sem_flg = IPC_NOWAIT;
-    sops_6[0].sem_num = SEM_NUM_INIT;
-    sops_6[0].sem_op = 0;
+    sops_8[0].sem_flg = IPC_NOWAIT;
+    sops_8[0].sem_num = SEM_NUM_INIT;
+    sops_8[0].sem_op = 0;
     // Z(R)
-    sops_6[1].sem_flg = IPC_NOWAIT;
-    sops_6[1].sem_num = SEM_NUM_S_DEATH;
-    sops_6[1].sem_op = 0;
+    sops_8[1].sem_flg = IPC_NOWAIT;
+    sops_8[1].sem_num = SEM_NUM_S_DEATH;
+    sops_8[1].sem_op = 0;
     // P(R)
-    sops_6[2].sem_flg = IPC_NOWAIT;
-    sops_6[2].sem_num = SEM_NUM_R_DEATH;
-    sops_6[2].sem_op = -1;
+    sops_8[2].sem_flg = IPC_NOWAIT | SEM_UNDO;
+    sops_8[2].sem_num = SEM_NUM_R_DEATH;
+    sops_8[2].sem_op = -1;
     // V(R)
-    sops_6[3].sem_flg = 0;
-    sops_6[3].sem_num = SEM_NUM_R_DEATH;
-    sops_6[3].sem_op = 1;
+    sops_8[3].sem_flg = SEM_UNDO;
+    sops_8[3].sem_num = SEM_NUM_R_DEATH;
+    sops_8[3].sem_op = 1;
     // V(I)
-    sops_6[4].sem_flg = SEM_UNDO;
-    sops_6[4].sem_num = SEM_NUM_INIT;
-    sops_6[4].sem_op = 1;
+    sops_8[4].sem_flg = SEM_UNDO;
+    sops_8[4].sem_num = SEM_NUM_INIT;
+    sops_8[4].sem_op = 1;
     // V(S)
-    sops_6[5].sem_flg = SEM_UNDO;
-    sops_6[5].sem_num = SEM_NUM_S_DEATH;
-    sops_6[5].sem_op = 1;
+    sops_8[5].sem_flg = SEM_UNDO;
+    sops_8[5].sem_num = SEM_NUM_S_DEATH;
+    sops_8[5].sem_op = 1;
+    // V(Full)
+    sops_8[6].sem_flg = SEM_UNDO;
+    sops_8[6].sem_num = SEM_NUM_FULL;
+    sops_8[6].sem_op = 1;
+    // P(Full)
+    sops_8[7].sem_flg = 0;
+    sops_8[7].sem_num = SEM_NUM_FULL;
+    sops_8[7].sem_op = -1;
 
-    if (semop(sem_id, sops_6, 6) != 0)
+    if (semop(sem_id, sops_8, 8) != 0)
     {
         perror("sender can't init\n");
         exit(EXIT_FAILURE);
@@ -431,7 +439,7 @@ int SendFile(const char *file_name)
         sops_3[1].sem_op = 1;
 
         // P(empty)
-        sops_3[2].sem_flg = SEM_UNDO;
+        sops_3[2].sem_flg = 0;
         sops_3[2].sem_num = SEM_NUM_EMPTY;
         sops_3[2].sem_op = -1;
 
@@ -478,7 +486,7 @@ int SendFile(const char *file_name)
         }
 
         // V(full)
-        sops_3[2].sem_flg = SEM_UNDO;
+        sops_3[2].sem_flg = 0;
         sops_3[2].sem_num = SEM_NUM_FULL;
         sops_3[2].sem_op = 1;
 
