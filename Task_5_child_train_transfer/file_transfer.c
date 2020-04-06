@@ -78,7 +78,7 @@ int buff_get_amount_for_linear_read(const struct parent_staff *parent_data);
 
 int Buff_CalculateSize(int child_amount, int child_num);
 
-int ChildFunc(const struct child_stuff child_stuff_complete);
+int ChildFunc(int n,const struct child_stuff child_stuff_complete);
 
 int main(int argc, char **argv)
 {
@@ -252,7 +252,7 @@ int main(int argc, char **argv)
 
             //pid_t local_pid = getpid();
             //printf("\tPid of this child is %d and i'm %lu\n", local_pid, i);
-            return ChildFunc(child_stuff_complete);
+            return ChildFunc(i, child_stuff_complete);
             // close process
         }
     }
@@ -277,6 +277,8 @@ int main(int argc, char **argv)
     fd_set wfds;
     int first_to_exit_child = 0; // child are waiting to exit first. If exit another child -> error. If this child -> wait for next child to exit
     // if first child had exited, that means that sending is over. So we need to wait to all data transfer through other childs.
+
+    err_printf("parent pid: %d\n", getpid());
 
     if (child_amount == 1)
     {
@@ -414,6 +416,8 @@ int main(int argc, char **argv)
     }
     free(buff_parent_staff);
 
+    
+
     //err_printf("\nexiting\n ");
     return EXIT_SUCCESS;
 }
@@ -424,7 +428,7 @@ int main(int argc, char **argv)
  * @param key_sem NO_SEM if no sem used, key of sem value if this is the first child in train 
  * @return int 
  */
-int ChildFunc(const struct child_stuff child_stuff_complete)
+int ChildFunc(int n,const struct child_stuff child_stuff_complete)
 {
     char buff[BUFF_CHILD];
 
@@ -439,7 +443,10 @@ int ChildFunc(const struct child_stuff child_stuff_complete)
             exit(EXIT_FAILURE);
         }
 
-        //sleep(3);
+        /* if( n % 2 == 0)
+        {
+            sleep(2);
+        } */
 
         write_amount = write(child_stuff_complete.fd_out, buff, read_amount);
         if (write_amount < 0)

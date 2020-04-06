@@ -8,12 +8,8 @@ all: $(P)
 .c:
 	$(CC) $(CFLAGS) $< -o $@.elf64
 
-
-run_r: $(P)
-	./$<.elf64 -receive 
-
-run_s: $(P)
-	./$<.elf64 -send test.txt
+run: $(P)
+	./$<.elf64 test.txt
 	
 
 clean:
