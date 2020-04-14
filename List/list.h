@@ -36,6 +36,8 @@ struct List
     size_t size;
 };
 
+typedef struct Node* List_iter_t;
+
 struct List *List_create();
 int List_delete(struct List *list);
 
@@ -51,10 +53,9 @@ void *List_pop_front(struct List *list);
 void *List_back(struct List *list);
 void *List_front(struct List *list);
 
-size_t List_first(struct List *list);
-size_t List_next(struct List *list, size_t iterator);
-bool List_is_end(struct List *list, size_t iterator);
-void *List_get(struct List *list, size_t iterator);
+List_iter_t List_first(struct List *list);
+List_iter_t List_next(struct List *list, List_iter_t iterator);
+void *List_get(struct List *list, List_iter_t iterator);
 
 /**
  * @brief insert node after node with iterator provided
@@ -64,13 +65,21 @@ void *List_get(struct List *list, size_t iterator);
  * @param data 
  * @return int 
  */
-int List_insert(struct List *list, size_t iterator, void *data);
-int List_remove(struct List *list, size_t iterator);
+int List_insert(struct List *list, List_iter_t iterator, void *data);
+
+/**
+ * @brief remove node with iterator and return iter to next after removed node
+ * 
+ * @param list 
+ * @param iterator 
+ * @return List_iter_t
+ */
+List_iter_t List_remove(struct List *list, List_iter_t iterator);
 
 int List_size(struct List *list);
 
 // system
 
-struct Node *List_get_node_pointer(struct List *list, size_t iterator);
+struct Node *List_get_node_pointer(struct List *list, List_iter_t iterator);
 
 #endif

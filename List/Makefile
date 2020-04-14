@@ -2,7 +2,7 @@ P = List
 CFLAGS=-g -Wall -std=c11 -O0 -m64 -pedantic
 
 CFLAGS_GCOV = -fprofile-arcs -ftest-coverage
-CFLAGS_DEBUG = -Dmalloc_debug
+CFLAGS_DEBUG = -Dmalloc_debug #-Dper_test_exec=true
 
 all: test
 
@@ -19,7 +19,7 @@ run_valgrind: test
 	valgrind --leak-check=full ./test.elf64	
 
 run_test: test
-	time ./test.elf64
+	./test.elf64
 
 clean:
 	rm -v *.gcda *.gcov *.gcno *.elf64

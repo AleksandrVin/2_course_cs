@@ -11,9 +11,9 @@
 
 #include "list.h"
 
-// malloc debugging 
+// malloc debugging
 #ifdef malloc_debug
-#define malloc(x) ( malloc_err ? NULL : malloc(x))
+#define malloc(x) (malloc_err ? NULL : malloc(x))
 #endif
 
 extern bool malloc_err;
@@ -39,28 +39,29 @@ int List_delete(struct List *list)
     }
     while (List_size(list) > 0)
     {
-        assert(List_remove(list,List_first(list)) == EXIT_SUCCESS);
+        List_remove(list,List_first(list));
     }
     free(list);
     return EXIT_SUCCESS;
 }
 
-int List_remove(struct List *list, size_t iterator)
+List_iter_t List_remove(struct List *list, List_iter_t iterator)
 {
     if (list == NULL)
     {
-        return EXIT_FAILURE;
+        return NULL;
     }
     struct Node *node = List_get_node_pointer(list, iterator);
+    List_iter_t iter_temp = List_next(list, iterator);
     if (node == NULL)
     {
-        return EXIT_FAILURE;
+        return NULL;
     }
-    if(list->tail == node)
+    if (list->tail == node)
     {
         list->tail = node->next;
     }
-    if(list->head == node)
+    if (list->head == node)
     {
         list->head = node->prev;
     }
@@ -74,7 +75,7 @@ int List_remove(struct List *list, size_t iterator)
     }
     list->size--;
     free(node);
-    return EXIT_SUCCESS;
+    return iter_temp;
 }
 
 void *List_front(struct List *list)
@@ -182,7 +183,7 @@ void *List_pop_front(struct List *list)
     }
     else // if only one element in list
     {
-        assert(List_remove(list, List_first(list)) == EXIT_SUCCESS);
+        List_remove(list, List_first(list));
     }
     return data;
 }
@@ -197,19 +198,19 @@ void *List_pop_back(struct List *list)
         return NULL;
     }
     void *data = list->tail->data;
-    assert(List_remove(list,List_first(list)) == EXIT_SUCCESS);
+    List_remove(list, List_first(list));
     return data;
 }
 
-int List_insert(struct List *list, size_t iterator, void *data)
+int List_insert(struct List *list, List_iter_t iterator, void *data)
 {
-    if(list == NULL)
+    if (list == NULL)
     {
         return EXIT_FAILURE;
     }
-    if(List_size(list) == 0)
+    if (List_size(list) == 0)
     {
-        return List_push_back(list,data);
+        return List_push_back(list, data);
     }
     struct Node *node = List_get_node_pointer(list, iterator);
     if (node == NULL)
@@ -235,27 +236,19 @@ int List_insert(struct List *list, size_t iterator, void *data)
     return EXIT_SUCCESS;
 }
 
-struct Node *List_get_node_pointer(struct List *list, size_t iterator)
+struct Node *List_get_node_pointer(struct List *list, List_iter_t iterator)
 {
     assert(list != NULL);
-    if (List_is_end(list, iterator))
+    return iterator;
+}
+
+void *List_get(struct List *list, List_iter_t iterator)
+{
+    if (iterator == NULL)
     {
         return NULL;
     }
-    struct Node *current = list->tail;
-    size_t iter_current = List_first(list);
-    while (iter_current < iterator)
-    {
-        current = current->next;
-        iter_current = List_next(list, iter_current);
-    }
-    return current;
-}
-
-void *List_get(struct List *list, size_t iterator)
-{
-    struct Node *node = List_get_node_pointer(list, iterator);
-    return node->data;
+    return iterator->data;
 }
 
 int List_size(struct List *list)
@@ -267,6 +260,19 @@ int List_size(struct List *list)
     return list->size;
 }
 
-size_t List_first(struct List *list) { return 0; }
-size_t List_next(struct List *list, size_t iterator) { return iterator + 1; }
-bool List_is_end(struct List *list, size_t iterator) { return iterator >= list->size; }
+List_iter_t List_first(struct List *list)
+{
+    if (list == NULL)
+    {
+        return NULL;
+    }
+    return list->tail;
+}
+List_iter_t List_next(struct List *list, List_iter_t iterator)
+{
+    if (list == NULL || iterator == NULL)
+    {
+        return NULL;
+    }
+    return iterator->next;
+}

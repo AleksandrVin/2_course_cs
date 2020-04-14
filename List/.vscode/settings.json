@@ -1,0 +1,9 @@
+{
+    "cSpell.enableFiletypes": [
+        "c"
+    ],
+    "files.associations": {
+        "cstdio": "cpp",
+        "list.h": "c"
+    }
+}

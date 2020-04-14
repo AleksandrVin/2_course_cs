@@ -16,6 +16,9 @@
 #include "list.h"
 
 bool malloc_err = false;
+#ifndef per_test_exec
+#define per_test_exec false
+#endif
 
 #define ANSI_COLOR_RED "\x1b[31m"
 #define ANSI_COLOR_GREEN "\x1b[32m"
@@ -25,14 +28,17 @@ bool malloc_err = false;
 #define ANSI_COLOR_CYAN "\x1b[36m"
 #define ANSI_COLOR_RESET "\x1b[0m"
 
+
 #define TEST_int(a, b)                                                                 \
+    if(per_test_exec) getchar();                                                          \
     if ((a) != (b))                                                                    \
         printf(ANSI_COLOR_RED "\ttest failed: %d != %d\n" ANSI_COLOR_RESET, (a), (b)); \
     else                                                                               \
         printf(ANSI_COLOR_GREEN "test done\n" ANSI_COLOR_RESET)
 
 #define TEST_pointer(a, b)                                                                 \
-    if ((a) != (b))                                                                    \
+    if(per_test_exec) getchar();                                                          \
+    if ((void*)(a) != (void*)(b))                                                                    \
         printf(ANSI_COLOR_RED "\ttest failed: %p != %p\n" ANSI_COLOR_RESET, (void*)(a), (void*)(b)); \
     else                                                                               \
         printf(ANSI_COLOR_GREEN "test done\n" ANSI_COLOR_RESET)
@@ -97,6 +103,7 @@ int main()
         data[i] = i;
         List_push_front(list_1, &(data[i]));
     }
+    //print_list_int(list_1);
     for (int i = 49; i >= 0; i--)
     {
         data_return = *(int *)List_pop_front(list_1);
@@ -114,7 +121,7 @@ int main()
         data[i] = i;
         List_push_front(list_1, &(data[i]));
     }
-    size_t iter = List_first(list_1); // list[0] elem
+    List_iter_t iter = List_first(list_1); // list[0] elem
     iter = List_next(list_1, iter);   // list[1] elem
     iter = List_next(list_1, iter);   // list[2] elem
     data_return = *(int *)List_get(list_1, iter);
@@ -152,7 +159,7 @@ int main()
     data_return = *(int *)List_get(list_1, iter);
     TEST_int(data_return, data[10]);
 
-    List_remove(list_1, iter);
+    iter = List_remove(list_1, iter);
     data_return = *(int *)List_get(list_1, iter);
     TEST_int(data_return, data[3]);
     List_delete(list_1);
@@ -189,8 +196,8 @@ int main()
     int return_value = List_delete(NULL);
     TEST_int(return_value, EXIT_FAILURE);
 
-    return_value = List_remove(NULL, List_first(NULL));
-    TEST_int(return_value, EXIT_FAILURE);
+    List_iter_t return_value_2 = List_remove(NULL, List_first(NULL));
+    TEST_pointer(return_value_2, NULL);
 
     void *return_value_p = List_front(NULL);
     TEST_pointer(return_value_p, NULL);
@@ -225,10 +232,8 @@ int main()
     List_push_front(list_1,&value);
     iter = List_first(list_1);
     iter = List_next(list_1,iter);
-    TEST_int(List_remove(list_1,iter), EXIT_FAILURE);
+    TEST_pointer(List_remove(list_1,iter), NULL);
     TEST_int(List_insert(list_1,iter,data),EXIT_FAILURE);
-    iter = List_first(list_1);
-    TEST_int(List_remove(list_1,iter), EXIT_SUCCESS);
 
     List_delete(list_1);
 
@@ -275,6 +280,14 @@ int main()
     list_1 = List_create();
     List_insert(list_1,List_first(list_1),data);
     TEST_pointer(List_pop_front(list_1),data);
+    List_delete(list_1);
+
+    /**
+     * @brief list_get from item NULL
+     * 
+     */
+    list_1 = List_create();
+    TEST_pointer(List_get(list_1, NULL), NULL);
     List_delete(list_1);
 
     return EXIT_SUCCESS;
