@@ -1,0 +1,297 @@
+        -:    0:Source:list.c
+        -:    0:Graph:list.gcno
+        -:    0:Data:list.gcda
+        -:    0:Runs:1
+        -:    0:Programs:1
+        -:    1:/**
+        -:    2: * @file list.c
+        -:    3: * @author Aleksandr Vinogradov 
+        -:    4: * @brief c style list generic lib
+        -:    5: * @version 0.1
+        -:    6: * @date 2020-03-04
+        -:    7: * 
+        -:    8: * @copyright Copyright (c) 2020
+        -:    9: * 
+        -:   10: */
+        -:   11:
+        -:   12:#include "list.h"
+        -:   13:
+        -:   14:// malloc debugging
+        -:   15:#ifdef malloc_debug
+        -:   16:#define malloc(x) (malloc_err ? NULL : malloc(x))
+        -:   17:#endif
+        -:   18:
+        -:   19:struct Node
+        -:   20:{
+        -:   21:    struct Node *next;
+        -:   22:    struct Node *prev;
+        -:   23:    void *data;
+        -:   24:};
+        -:   25:
+        -:   26:struct List
+        -:   27:{
+        -:   28:    struct Node *head;
+        -:   29:    struct Node *tail;
+        -:   30:    size_t size;
+        -:   31:};
+        -:   32:
+        -:   33:extern bool malloc_err;
+        -:   34:
+       13:   35:struct List *List_create()
+        -:   36:{
+       13:   37:    struct List *list = malloc(sizeof(struct List));
+       13:   38:    if (list == NULL)
+        -:   39:    {
+        1:   40:        return NULL;
+        -:   41:    }
+       12:   42:    list->head = NULL;
+       12:   43:    list->tail = NULL;
+       12:   44:    list->size = 0;
+       12:   45:    return list;
+        -:   46:}
+        -:   47:
+       13:   48:int List_delete(struct List *list)
+        -:   49:{
+       13:   50:    if (list == NULL)
+        -:   51:    {
+        1:   52:        return EXIT_FAILURE;
+        -:   53:    }
+       98:   54:    while (List_size(list) > 0)
+        -:   55:    {
+       74:   56:        List_remove(list,List_first(list));
+        -:   57:    }
+       12:   58:    free(list);
+       12:   59:    return EXIT_SUCCESS;
+        -:   60:}
+        -:   61:
+      180:   62:List_iter_t List_remove(struct List *list, List_iter_t iterator)
+        -:   63:{
+      180:   64:    if (list == NULL)
+        -:   65:    {
+        1:   66:        return NULL;
+        -:   67:    }
+      179:   68:    struct Node *node = List_get_node_pointer(list, iterator);
+      179:   69:    List_iter_t iter_temp = List_next(list, iterator);
+      179:   70:    if (node == NULL)
+        -:   71:    {
+        1:   72:        return NULL;
+        -:   73:    }
+      178:   74:    if (list->tail == node)
+        -:   75:    {
+      177:   76:        list->tail = node->next;
+        -:   77:    }
+      178:   78:    if (list->head == node)
+        -:   79:    {
+       10:   80:        list->head = node->prev;
+        -:   81:    }
+      178:   82:    if (node->prev != NULL)
+        -:   83:    {
+        1:   84:        node->prev->next = node->next;
+        -:   85:    }
+      178:   86:    if (node->next != NULL)
+        -:   87:    {
+      168:   88:        node->next->prev = node->prev;
+        -:   89:    }
+      178:   90:    list->size--;
+      178:   91:    free(node);
+      178:   92:    return iter_temp;
+        -:   93:}
+        -:   94:
+        3:   95:void *List_front(struct List *list)
+        -:   96:{
+        3:   97:    if (list == NULL)
+        -:   98:    {
+        1:   99:        return NULL;
+        -:  100:    }
+        2:  101:    if (list->size > 0)
+        -:  102:    {
+        1:  103:        return list->head->data;
+        -:  104:    }
+        1:  105:    return NULL;
+        -:  106:}
+        -:  107:
+        3:  108:void *List_back(struct List *list)
+        -:  109:{
+        3:  110:    if (list == NULL)
+        -:  111:    {
+        1:  112:        return NULL;
+        -:  113:    }
+        2:  114:    if (list->size > 0)
+        -:  115:    {
+        1:  116:        return list->tail->data;
+        -:  117:    }
+        1:  118:    return NULL;
+        -:  119:}
+        -:  120:
+      186:  121:int List_push_front(struct List *list, void *data)
+        -:  122:{
+      186:  123:    if (list == NULL)
+        -:  124:    {
+        1:  125:        return EXIT_FAILURE;
+        -:  126:    }
+      185:  127:    struct Node *node = malloc(sizeof(struct Node));
+      185:  128:    if (node == NULL)
+        -:  129:    {
+        1:  130:        return EXIT_FAILURE;
+        -:  131:    }
+        -:  132:
+      184:  133:    node->next = NULL;
+      184:  134:    node->prev = NULL;
+      184:  135:    node->data = data;
+      184:  136:    list->size++;
+      184:  137:    if (list->head == NULL)
+        -:  138:    {
+        6:  139:        list->head = node;
+        6:  140:        list->tail = node;
+        -:  141:    }
+        -:  142:    else
+        -:  143:    {
+      178:  144:        node->prev = list->head;
+      178:  145:        list->head->next = node;
+      178:  146:        list->head = node;
+        -:  147:    }
+      184:  148:    return EXIT_SUCCESS;
+        -:  149:}
+       46:  150:int List_push_back(struct List *list, void *data)
+        -:  151:{
+       46:  152:    if (list == NULL)
+        -:  153:    {
+        1:  154:        return EXIT_FAILURE;
+        -:  155:    }
+       45:  156:    struct Node *node = malloc(sizeof(struct Node));
+       45:  157:    if (node == NULL)
+        -:  158:    {
+        1:  159:        return EXIT_FAILURE;
+        -:  160:    }
+        -:  161:
+       44:  162:    node->next = NULL;
+       44:  163:    node->prev = NULL;
+       44:  164:    node->data = data;
+       44:  165:    list->size++;
+       44:  166:    if (list->tail == NULL)
+        -:  167:    {
+        4:  168:        list->head = node;
+        4:  169:        list->tail = node;
+        -:  170:    }
+        -:  171:    else
+        -:  172:    {
+       40:  173:        node->next = list->tail;
+       40:  174:        list->tail->prev = node;
+       40:  175:        list->tail = node;
+        -:  176:    }
+       44:  177:    return EXIT_SUCCESS;
+        -:  178:}
+        -:  179:
+       57:  180:void *List_pop_front(struct List *list)
+        -:  181:{
+       57:  182:    if (list == NULL)
+        -:  183:    {
+        1:  184:        return NULL;
+        -:  185:    }
+       56:  186:    if (list->tail == NULL)
+        -:  187:    {
+        1:  188:        return NULL;
+        -:  189:    }
+       55:  190:    void *data = list->head->data;
+       55:  191:    if (list->head->prev != NULL)
+        -:  192:    {
+       52:  193:        list->head = list->head->prev;
+       52:  194:        free(list->head->next);
+       52:  195:        list->head->next = NULL;
+       52:  196:        list->size--;
+        -:  197:    }
+        -:  198:    else // if only one element in list
+        -:  199:    {
+        3:  200:        List_remove(list, List_first(list));
+        -:  201:    }
+       55:  202:    return data;
+        -:  203:}
+      102:  204:void *List_pop_back(struct List *list)
+        -:  205:{
+      102:  206:    if (list == NULL)
+        -:  207:    {
+        1:  208:        return NULL;
+        -:  209:    }
+      101:  210:    if (list->tail == NULL)
+        -:  211:    {
+        1:  212:        return NULL;
+        -:  213:    }
+      100:  214:    void *data = list->tail->data;
+      100:  215:    List_remove(list, List_first(list));
+      100:  216:    return data;
+        -:  217:}
+        -:  218:
+        7:  219:int List_insert(struct List *list, List_iter_t iterator, void *data)
+        -:  220:{
+        7:  221:    if (list == NULL)
+        -:  222:    {
+        1:  223:        return EXIT_FAILURE;
+        -:  224:    }
+        6:  225:    if (List_size(list) == 0)
+        -:  226:    {
+        1:  227:        return List_push_back(list, data);
+        -:  228:    }
+        5:  229:    struct Node *node = List_get_node_pointer(list, iterator);
+        5:  230:    if (node == NULL)
+        -:  231:    {
+        1:  232:        return EXIT_FAILURE;
+        -:  233:    }
+        4:  234:    if (list->head == node)
+        -:  235:    {
+        1:  236:        return List_push_front(list, data);
+        -:  237:    }
+        3:  238:    struct Node *node_new = malloc(sizeof(struct Node));
+        3:  239:    if (node_new == NULL)
+        -:  240:    {
+        1:  241:        return EXIT_FAILURE;
+        -:  242:    }
+        2:  243:    node_new->prev = node;
+        2:  244:    node_new->next = node->next;
+        2:  245:    node_new->data = data;
+        -:  246:
+        2:  247:    node->next->prev = node_new;
+        2:  248:    node->next = node_new;
+        2:  249:    list->size++;
+        2:  250:    return EXIT_SUCCESS;
+        -:  251:}
+        -:  252:
+      184:  253:struct Node *List_get_node_pointer(struct List *list, List_iter_t iterator)
+        -:  254:{
+      184:  255:    assert(list != NULL);
+      184:  256:    return iterator;
+        -:  257:}
+        -:  258:
+        4:  259:void *List_get(struct List *list, List_iter_t iterator)
+        -:  260:{
+        4:  261:    if (iterator == NULL)
+        -:  262:    {
+        1:  263:        return NULL;
+        -:  264:    }
+        3:  265:    return iterator->data;
+        -:  266:}
+        -:  267:
+       94:  268:int List_size(struct List *list)
+        -:  269:{
+       94:  270:    if (list == NULL)
+        -:  271:    {
+        1:  272:        return -1;
+        -:  273:    }
+       93:  274:    return list->size;
+        -:  275:}
+        -:  276:
+      187:  277:List_iter_t List_first(struct List *list)
+        -:  278:{
+      187:  279:    if (list == NULL)
+        -:  280:    {
+        2:  281:        return NULL;
+        -:  282:    }
+      185:  283:    return list->tail;
+        -:  284:}
+      187:  285:List_iter_t List_next(struct List *list, List_iter_t iterator)
+        -:  286:{
+      187:  287:    if (list == NULL || iterator == NULL)
+        -:  288:    {
+        1:  289:        return NULL;
+        -:  290:    }
+      186:  291:    return iterator->next;
+        -:  292:}

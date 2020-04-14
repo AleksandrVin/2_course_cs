@@ -43,7 +43,7 @@ bool malloc_err = false;
     else                                                                               \
         printf(ANSI_COLOR_GREEN "test done\n" ANSI_COLOR_RESET)
 
-void print_list_int(struct List *list)
+/* void print_list_int(struct List *list)
 {
     struct Node *node = list->tail;
     for (size_t i = 0; i < list->size; i++)
@@ -51,7 +51,9 @@ void print_list_int(struct List *list)
         printf("list elem N %ld is %d\n", i, *(int *)(node->data));
         node = node->next;
     }
-}
+} */
+
+//extern magic_list_print_func(struct List *list);
 
 int main()
 {

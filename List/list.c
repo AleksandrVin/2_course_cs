@@ -16,6 +16,20 @@
 #define malloc(x) (malloc_err ? NULL : malloc(x))
 #endif
 
+struct Node
+{
+    struct Node *next;
+    struct Node *prev;
+    void *data;
+};
+
+struct List
+{
+    struct Node *head;
+    struct Node *tail;
+    size_t size;
+};
+
 extern bool malloc_err;
 
 struct List *List_create()

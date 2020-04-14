@@ -22,19 +22,9 @@
 
 #endif
 
-struct Node
-{
-    struct Node *next;
-    struct Node *prev;
-    void *data;
-};
+struct Node;
 
-struct List
-{
-    struct Node *head;
-    struct Node *tail;
-    size_t size;
-};
+struct List;
 
 typedef struct Node* List_iter_t;
 
