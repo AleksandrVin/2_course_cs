@@ -9,6 +9,8 @@
 
 #define cpu_amount_filename "/sys/devices/system/cpu/online"
 
+#define _GNU_SOURCE
+
 #define DIFFICULTY 500000000
 
 #define A -1000
@@ -33,14 +35,14 @@ struct Calc_node
     int a, b;
     double result_p;
     int theads;
-    char trash[4028 - sizeof(void*)*2 - sizeof(int)*3];
+    char trash[4028 - sizeof(void *) * 2 - sizeof(int) * 3];
 };
 
 void *CalcFunc(struct Calc_node *node)
 {
     double a_ = (*node).a;
     double b_ = (*node).b;
-    long double step = (b_ - a_) / ( DIFFICULTY / node->theads);
+    long double step = (b_ - a_) / (DIFFICULTY / node->theads);
     long double result = 0;
     for (; a_ < b_; a_ += step)
     {
@@ -86,8 +88,40 @@ int main(int argc, char **argv)
         fclose(file_cpus);
     }
 
-    coreMax /= 2;
+    coreMax -= 1;
 
+    // ---calculating---
+
+    pthread_t *tids_w = calloc(thread_amount, sizeof(pthread_t));
+    pthread_attr_t attr_w;
+    pthread_attr_init(&attr_w);
+
+    struct Calc_node *nodes = calloc(thread_amount, sizeof(struct Calc_node));
+    int a_b_every_body = (B - A) / thread_amount;
+    int a_b_last = (B - A) % thread_amount;
+
+    printf("\nstarting threads\n");
+
+    long double result_f_global = 0;
+    for (int i = 0; i < thread_amount; i++)
+    {
+        nodes[i].a = a_b_every_body * i + A;
+        nodes[i].b = nodes[i].a + a_b_every_body;
+        nodes[i].function = &f;
+        nodes[i].theads = thread_amount;
+
+        if (i >= thread_amount - 1)
+        {
+            nodes[i].b += a_b_last;
+        }
+
+        int status = pthread_create(&(tids_w[i]), &attr_w, (void *(*)(void *))CalcFunc, &(nodes[i]));
+        if (status != 0)
+        {
+            printf("#### Error in thread creating happend\n");
+            return -1;
+        }
+    }
 
 #ifdef TRASH_ALLOWED
 
@@ -116,50 +150,25 @@ int main(int argc, char **argv)
     }
 #endif
 
-    // ---calculating---
+    printf("waiting for threads\n");
 
-    pthread_t *tids_w = calloc(thread_amount, sizeof(pthread_t));
-    pthread_attr_t attr_w;
-    pthread_attr_init(&attr_w);
-
-    struct Calc_node *nodes = calloc(thread_amount, sizeof(struct Calc_node));
-    int a_b_every_body = (B - A) / thread_amount;
-    int a_b_last = (B - A) % thread_amount;
-
-   
-    printf("\nstarting threads\n");
-
-    long double result_f_global = 0;
-    for (int i = 0; i < thread_amount; i++)
+    if (thread_amount < coreMax + 1)
     {
-        nodes[i].a = a_b_every_body * i + A;
-        nodes[i].b = nodes[i].a + a_b_every_body;
-        nodes[i].function = &f;
-        nodes[i].theads = thread_amount;
 
-        if (i >= thread_amount - 1)
+        while (pthread_tryjoin_np(tids_w[0], NULL))
         {
-            nodes[i].b += a_b_last;
-        }
-
-        int status = pthread_create(&(tids_w[i]), &attr_w, (void *(*)(void *))CalcFunc, &(nodes[i]));
-        if (status != 0)
-        {
-            printf("#### Error in thread creating happend\n");
-            return -1;
+            pow(1000, 3);
         }
     }
 
-    printf("waiting for threads\n");
-
     for (int i = 0; i < thread_amount; i++)
     {
-        int status = pthread_join(tids_w[i], NULL);
-        if (status != 0)
+        pthread_join(tids_w[i], NULL);
+        /*         if (status != 0)
         {
             printf("#### Error in thread waiting happend\n");
             return -1;
-        }
+        } */
         result_f_global += nodes[i].result_p;
     }
 
