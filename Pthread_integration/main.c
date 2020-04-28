@@ -9,7 +9,7 @@
 
 #define cpu_amount_filename "/sys/devices/system/cpu/online"
 
-#define DIFFICULTY 100000000
+#define DIFFICULTY 1000000000
 
 #define A -1000
 #define B 1000
@@ -33,7 +33,7 @@ struct Calc_node
     int a, b;
     double result_p;
     int theads;
-    //char trash[4028 - sizeof(void*)*2 - sizeof(int)*2];
+    char trash[4028 - sizeof(void*)*2 - sizeof(int)*3];
 };
 
 void *CalcFunc(struct Calc_node *node)
@@ -78,10 +78,10 @@ int main(int argc, char **argv)
     FILE *file_cpus;
     file_cpus = fopen(cpu_amount_filename, "r");
 
+    int core0, coreMax;
+
     if (file_cpus != NULL)
     {
-        printf("starting threads");
-        int core0, coreMax;
         fscanf(file_cpus, "%i-%i", &core0, &coreMax);
         fclose(file_cpus);
     }
