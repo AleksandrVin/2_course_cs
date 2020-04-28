@@ -55,11 +55,14 @@ int main(int argc, char **argv)
     fscanf(file_cpus, "%i-%i", &core0, &coreMax);
     fclose(file_cpus);
 
+    #ifdef TRASH_ALLOWED 
+
     pthread_t *tids;  // [coreMax - thread_amount + 1];
 
         // load default attrebuts in attr of thread
     pthread_attr_t attr;
 
+    
     if (coreMax >= thread_amount)
     {
         // creating "trash threads"
@@ -78,6 +81,7 @@ int main(int argc, char **argv)
             }
         }
     }
+    #endif
 
     omp_set_num_threads(thread_amount);
 

@@ -6,5 +6,10 @@ CC = gcc
 
 all: $(P)
 
+
 $(P): $(P).c
-	$(CC) $(CFLAGS) $^ -o $@.elf64 $(LDFLAGS)
+	$(CC) $(CFLAGS) $(DEFINES) $^ -o $@.elf64 $(LDFLAGS)
+
+
+# use this for trash_threads
+# make DEFINES="-DTRASH_ALLOWED"
