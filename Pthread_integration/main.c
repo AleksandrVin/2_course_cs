@@ -9,7 +9,7 @@
 
 #define cpu_amount_filename "/sys/devices/system/cpu/online"
 
-#define DIFFICULTY 100000000
+#define DIFFICULTY 500000000
 
 #define A -1000
 #define B 1000
