@@ -9,7 +9,7 @@
 
 #define cpu_amount_filename "/sys/devices/system/cpu/online"
 
-#define DIFFICULTY 1000000000
+#define DIFFICULTY 100000000
 
 #define A -1000
 #define B 1000
@@ -85,6 +85,8 @@ int main(int argc, char **argv)
         fscanf(file_cpus, "%i-%i", &core0, &coreMax);
         fclose(file_cpus);
     }
+
+    coreMax /= 2;
 
 
 #ifdef TRASH_ALLOWED
