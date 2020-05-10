@@ -1,3 +1,4 @@
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -7,20 +8,35 @@
 
 #include <pthread.h>
 
+#include <sys/time.h>
+#include <sys/resource.h>
+
+#include <signal.h>
+
 #define cpu_amount_filename "/sys/devices/system/cpu/online"
+#define cpu_0_affinity "/sys/devices/system/cpu/cpu0/topology/thread_siblings_list"
 
 #define _GNU_SOURCE
 
-#define DIFFICULTY 500000000
+#define ANSI_COLOR_RED "\x1b[31m"
+#define ANSI_COLOR_GREEN "\x1b[32m"
+#define ANSI_COLOR_YELLOW "\x1b[33m"
+#define ANSI_COLOR_BLUE "\x1b[34m"
+#define ANSI_COLOR_MAGENTA "\x1b[35m"
+#define ANSI_COLOR_CYAN "\x1b[36m"
+#define ANSI_COLOR_RESET "\x1b[0m"
 
-#define A -1000
-#define B 1000
+#define DIFFICULTY 100000000 // set to 500000000 for normal time
+
+#define A -800
+#define B 800
 
 long double f(double x, void *params)
 {
     return expl(-pow(x, 2));
 }
 
+#ifdef TRASH_ALLOWED
 void *TrashFunc(void *number)
 {
     while (1)
@@ -28,6 +44,7 @@ void *TrashFunc(void *number)
         pow(1000, 3);
     }
 }
+#endif
 
 struct Calc_node
 {
@@ -80,15 +97,47 @@ int main(int argc, char **argv)
     FILE *file_cpus;
     file_cpus = fopen(cpu_amount_filename, "r");
 
-    int core0, coreMax;
+    int core0 = 0, coreMax = 0;
 
     if (file_cpus != NULL)
     {
         fscanf(file_cpus, "%i-%i", &core0, &coreMax);
         fclose(file_cpus);
     }
+    else
+    {
+        perror("can't read thread topology\n");
+        return EXIT_FAILURE;
+    }
 
-    coreMax -= 1;
+    int cpus_per_core = 0;
+    char waste;
+
+    int thread_sibling[8];
+
+    file_cpus = fopen(cpu_0_affinity, "r");
+    if (file_cpus != NULL)
+    {
+        //cpus_per_core = fscanf(file_cpus, "%i%c%i%c%i%c%i%c%i%c%i%c%i%c%i", &core0, &waste, &core0, &waste, &core0, &waste, &core0, &waste, &core0, &waste, &core0, &waste, &core0, &waste, &core0) / 2 + 1;
+        while (!feof(file_cpus))
+        {
+            if (fscanf(file_cpus, "%i%c", thread_sibling + cpus_per_core, &waste) > 0)
+            {
+                cpus_per_core += 1;
+            }
+        }
+
+        printf("cpu SMT is %i\n", cpus_per_core);
+
+        fclose(file_cpus);
+    }
+    else
+    {
+        perror("can't read thread topology\n");
+        return EXIT_FAILURE;
+    }
+
+    coreMax /= cpus_per_core;
 
     // ---calculating---
 
@@ -123,6 +172,15 @@ int main(int argc, char **argv)
         }
     }
 
+    pid_t pid = -1;
+
+    struct rlimit limit;
+    if (getrlimit(RLIMIT_NICE, &limit))
+    {
+        perror("error in getrlimit\n");
+        return EXIT_FAILURE;
+    }
+
 #ifdef TRASH_ALLOWED
 
     pthread_t *tids; // [coreMax - thread_amount + 1];
@@ -132,8 +190,30 @@ int main(int argc, char **argv)
 
     if (coreMax >= thread_amount)
     {
+        pid = fork();
+        if (pid == -1)
+        {
+            perror("error while fork\n");
+            return EXIT_FAILURE;
+        }
+        if (pid != 0)
+        {
+            goto thread_waiting;
+        }
+
+        if (setpriority(PRIO_PROCESS, getpid(), 19))
+        {
+            perror("error in child with setpriority\n");
+            return EXIT_FAILURE;
+        }
+        else
+        {
+            printf(ANSI_COLOR_YELLOW "child is running with priority of 19\n" ANSI_COLOR_RESET);
+        }
+
         // creating "trash threads"
-        printf("creating %i TrashThread\n", coreMax - thread_amount + 1);
+        printf(ANSI_COLOR_MAGENTA "creating %i TrashThread\n" ANSI_COLOR_RESET, coreMax - thread_amount + 1);
+
         tids = calloc(coreMax - thread_amount + 1, sizeof(pthread_t));
 
         pthread_attr_init(&attr);
@@ -147,40 +227,46 @@ int main(int argc, char **argv)
                 return -1;
             }
         }
+
+        for (int i = 0; i <= coreMax - thread_amount; i++)
+        {
+            pthread_join(tids[i], NULL);
+        }
+
+        return 0;
     }
+
+thread_waiting:
 #endif
 
-    printf("waiting for threads\n");
-
-    if (thread_amount < coreMax + 1)
+    if (limit.rlim_max > 0)
     {
-
-        while (pthread_tryjoin_np(tids_w[0], NULL))
+        printf("hard limit is %ld , soft if %ld\n", limit.rlim_max, limit.rlim_cur);
+        if (setpriority(PRIO_PROCESS, getpid(), limit.rlim_max))
         {
-            pow(1000, 3);
+            perror("error in parent with setpriority\n");
+            return EXIT_FAILURE;
         }
+        printf("priority set to %ld\n", limit.rlim_max);
     }
+    else
+    {
+        printf(ANSI_COLOR_GREEN "main process is running with default priority\n" ANSI_COLOR_RESET);
+    }
+
+    printf("waiting for threads\n");
 
     for (int i = 0; i < thread_amount; i++)
     {
         pthread_join(tids_w[i], NULL);
-        /*         if (status != 0)
-        {
-            printf("#### Error in thread waiting happend\n");
-            return -1;
-        } */
         result_f_global += nodes[i].result_p;
     }
 
-    /*     if (coreMax >= thread_amount)
+    if (pid != -1)
     {
-        // canseling "trash threads"
-        for(size_t i = 0; i <= coreMax - thread_amount;i++)
-        {
-            pthread_cancel(tids[i]);
-        }
-    } */
+        kill(pid, SIGKILL);
+    }
 
-    printf("fixed result    is %Lf\n", result_f_global);
+    printf(ANSI_COLOR_RESET "fixed result    is %Lf\n", result_f_global);
     return 0;
 }

@@ -1,5 +1,5 @@
 P = main
-CFLAGS = -g -Wall -std=c11
+CFLAGS = -g -Wall -std=c11 -D_POSIX_C_SOURCE
 LDFLAGS = -lpthread  -lm
 
 CC = gcc
