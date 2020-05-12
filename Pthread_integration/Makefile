@@ -2,6 +2,8 @@ P = main
 CFLAGS = -g -Wall -std=c11 -D_POSIX_C_SOURCE
 LDFLAGS = -lpthread  -lm
 
+DEFINES=-DTRASH_ALLOWED
+
 CC = gcc
 
 all: $(P)

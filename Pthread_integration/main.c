@@ -137,6 +137,8 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
 
+    if (thread_amount > coreMax)
+        thread_amount = coreMax;
     coreMax /= cpus_per_core;
 
     // ---calculating---
