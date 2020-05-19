@@ -11,6 +11,8 @@
 #include <sys/time.h>
 #include <sys/resource.h>
 
+#include <sys/sysinfo.h>
+
 #include <signal.h>
 
 #define cpu_amount_filename "/sys/devices/system/cpu/online"
@@ -57,6 +59,9 @@ struct Calc_node
 
 void *CalcFunc(struct Calc_node *node)
 {
+    cpu_set_t cpuset;
+    
+
     double a_ = (*node).a;
     double b_ = (*node).b;
     long double step = (b_ - a_) / (DIFFICULTY / node->theads);
@@ -109,6 +114,8 @@ int main(int argc, char **argv)
         perror("can't read thread topology\n");
         return EXIT_FAILURE;
     }
+
+    printf("system have %d cpus\n", get_nprocs());
 
     int cpus_per_core = 0;
     char waste;
