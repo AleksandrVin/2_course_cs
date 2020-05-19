@@ -78,7 +78,7 @@ int main()
     bzero(&addr_broadcast, sizeof(addr_broadcast));
     addr_broadcast.sin_family = AF_INET;
     addr_broadcast.sin_port = htons(PORT_SERVER);
-    addr_broadcast.sin_addr.s_addr = htonl(INADDR_BROADCAST);
+    addr_broadcast.sin_addr.s_addr = INADDR_BROADCAST;
 
     // sending broadcast message
     char request[] = protocol_start;
@@ -96,8 +96,8 @@ int main()
 
     do
     {
-        tv.tv_sec = 0;
-        tv.tv_usec = 100;
+        tv.tv_sec = 1;
+        tv.tv_usec = 0;
 
         FD_ZERO(&rfds);
         FD_SET(udp, &rfds);
@@ -110,7 +110,7 @@ int main()
         }
         if (retval)
         {
-            struct connection connect_local;
+            struct connection connect_local = {};
             socklen_t addrlen = sizeof(struct sockaddr_in);
             char buf[BUF_SIZE] = "";
             ssize_t received = recvfrom(udp, buf, BUF_SIZE, MSG_DONTWAIT, (struct sockaddr *)&connect_local.addr, &addrlen);
@@ -132,7 +132,7 @@ int main()
                 return EXIT_FAILURE;
             }
 
-            if (connect(connect_local.tcp, (struct sockaddr *)&connect_local.addr, sizeof(connect_local.addr)) != 0)
+            if (connect(connect_local.tcp, (struct sockaddr *)&connect_local.addr, sizeof(connect_local.addr)))
             {
                 perror("connect");
                 return EXIT_FAILURE;

@@ -38,6 +38,8 @@
 
 #define DIFFICULTY 50000000 // set to 500000000 for normal time
 
+#define MAX_WAIT_SEC 1000
+
 #define A -5000
 #define B 5000
 
@@ -82,6 +84,8 @@ void *TrashFunc(void *number)
 
 int main(int argc, char **argv)
 {
+
+    printf("size of node is %li", sizeof(Calc_node));
 
     // ---reading threads amount from first arg---
     argc--;
@@ -159,7 +163,7 @@ int main(int argc, char **argv)
     }
 
     int broadcast = 1;
-    if(setsockopt(udp, SOL_SOCKET, SO_BROADCAST,&broadcast, sizeof(broadcast)))
+    if (setsockopt(udp, SOL_SOCKET, SO_BROADCAST, &broadcast, sizeof(broadcast)))
     {
         perror("can't set broadcast");
         return EXIT_FAILURE;
@@ -173,7 +177,7 @@ int main(int argc, char **argv)
     socklen_t addrlen = sizeof(struct sockaddr_in);
     char buf[BUF_SIZE] = "";
 
-    struct sockaddr_in addr_client;
+    struct sockaddr_in addr_client = {};
     bzero(&addr_client, sizeof(addr_client));
     printf("waiting for client\n");
 
@@ -189,6 +193,8 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
 
+    printf("broadcast received\n");
+
     // replying to client
 
     if (sendto(udp, protocol_server_responce, strlen(protocol_server_responce), 0, (const struct sockaddr *)&addr_client, sizeof(addr_client)) == -1)
@@ -199,10 +205,14 @@ int main(int argc, char **argv)
 
     close(udp);
 
+    printf("creating tcp\n");
+
     int tcp = socket(AF_INET, SOCK_STREAM, 0);
 
     int option = 1;
     setsockopt(tcp, SOL_SOCKET, SO_REUSEPORT, &option, sizeof(option));
+    option = 1;
+    setsockopt(tcp, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option));
 
     if (bind(tcp, (struct sockaddr *)&addr_server, sizeof(addr_server)))
     {
@@ -210,13 +220,38 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
 
-    if (listen(tcp, 256) == -1)
+    if (listen(tcp, 1024) == -1)
     {
         perror("listen");
         return EXIT_FAILURE;
     }
+
+    fd_set rfds;
+    struct timeval tv;
+    int retval;
+
+    tv.tv_sec = 1;
+    tv.tv_usec = 0;
+
+    FD_ZERO(&rfds);
+    FD_SET(tcp, &rfds);
+
+    retval = select(tcp + 1, &rfds, NULL , NULL, &tv);
+    if(retval == -1)
+    {
+        perror("select");
+        return EXIT_FAILURE;
+    }
+    else if(retval == 0)
+    {
+        printf("wait for client tcp connection timeout\n");
+        return EXIT_FAILURE;
+    }
+
+    printf("select done\n");
+
     int connect_local = accept(tcp, (struct sockaddr *)&addr_client, &addrlen);
-    if (connect_local == -1)
+    if (connect_local < 0)
     {
         perror("accept");
         return EXIT_FAILURE;
@@ -240,10 +275,6 @@ int main(int argc, char **argv)
     pthread_attr_init(&attr_w);
 
     struct Calc_node *nodes = (struct Calc_node *)calloc(thread_amount, sizeof(struct Calc_node));
-
-    fd_set rfds;
-    struct timeval tv;
-    int retval;
 
     for (int i = 0; i < thread_amount; i++)
     {
@@ -400,7 +431,7 @@ thread_waiting:
             return EXIT_FAILURE;
         }
 
-        if (send(connect_local, &nodes[i].result_p, sizeof(nodes[i].result_p), MSG_DONTWAIT) < (int)sizeof(nodes[i].result_p))
+        if (send(connect_local, &nodes[i].result_p, sizeof(nodes[i].result_p), 0) < (int)sizeof(nodes[i].result_p))
         {
             perror("can't send result to client");
             return EXIT_FAILURE;
