@@ -196,10 +196,10 @@ int main()
         }
     }
 
-    size_t current_node = 0;
+    int current_node = 0;
     for (auto a : connections)
     {
-        for (size_t i = current_node; i < current_node + a.threads; i++)
+        for (int i = current_node; i < current_node + a.threads; i++)
         {
             tv.tv_sec = 1;
             tv.tv_usec = 0;
@@ -218,7 +218,7 @@ int main()
                 perror("seems to server lost connection");
                 return EXIT_FAILURE;
             }
-            if (send(a.tcp, &nodes[i], sizeof(Calc_node), MSG_DONTWAIT) < (int)sizeof(Calc_node))
+            if (send(a.tcp, &(nodes[i]), sizeof(Calc_node), MSG_DONTWAIT) < (int)sizeof(Calc_node))
             {
                 perror("can't send full node to server");
                 return EXIT_FAILURE;
@@ -232,7 +232,7 @@ int main()
     current_node = 0;
     for (auto a : connections)
     {
-        for (size_t i = current_node; i < current_node + a.threads; i++)
+        for (int i = current_node; i < current_node + a.threads; i++)
         {
             tv.tv_sec = MAX_WAIT_SEC;
             tv.tv_usec = 0;
@@ -252,9 +252,9 @@ int main()
                 return EXIT_FAILURE;
             }
 
-            if (recv(a.tcp, &nodes[i].result_p, sizeof(nodes[i].result_p), MSG_DONTWAIT) < (int)sizeof(nodes[i].result_p))
+            if (recv(a.tcp, &(nodes[i].result_p), sizeof(nodes[i].result_p), MSG_DONTWAIT) < (int)sizeof(nodes[i].result_p))
             {
-                perror("no result from server");
+                perror("no result from server / seems to disconnect");
                 return EXIT_FAILURE;
             }
 

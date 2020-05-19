@@ -157,6 +157,13 @@ int main(int argc, char **argv)
         perror("socket ");
         return EXIT_FAILURE;
     }
+
+    int broadcast = 1;
+    if(setsockopt(udp, SOL_SOCKET, SO_BROADCAST,&broadcast, sizeof(broadcast)))
+    {
+        perror("can't set broadcast");
+        return EXIT_FAILURE;
+    }
     if (bind(udp, (struct sockaddr *)&addr_server, sizeof(addr_server)))
     {
         perror("bind ");
@@ -270,7 +277,7 @@ int main(int argc, char **argv)
 
         nodes[i] = node;
 
-        printf("node %i get with number %d\n", i, node.node_number);
+        printf("node %i get with number %d thread is %i\n", i, node.node_number, node.theads);
     }
 
     printf("\nstarting threads\n");
@@ -329,11 +336,11 @@ int main(int argc, char **argv)
         // creating "trash threads"
         printf(ANSI_COLOR_MAGENTA "creating %i TrashThread\n" ANSI_COLOR_RESET, coreMax - thread_amount + 1);
 
-        tids = calloc(coreMax - thread_amount + 1, sizeof(pthread_t));
+        tids = (pthread_t *)calloc(coreMax - thread_amount + 1, sizeof(pthread_t));
 
         pthread_attr_init(&attr);
 
-        for (size_t i = 0; i <= coreMax - thread_amount; i++)
+        for (int i = 0; i <= coreMax - thread_amount; i++)
         {
             int status = pthread_create(&(tids[i]), &attr, TrashFunc, NULL);
             if (status != 0)
