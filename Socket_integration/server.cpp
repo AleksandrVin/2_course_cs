@@ -447,5 +447,9 @@ thread_waiting:
 
     printf(ANSI_COLOR_RESET "calculations send\n");
 
+    sleep(1);
+
+    shutdown(connect_local, SHUT_RD);
+
     return EXIT_SUCCESS;
 }

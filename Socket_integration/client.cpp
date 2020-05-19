@@ -252,9 +252,15 @@ int main()
                 return EXIT_FAILURE;
             }
 
-            if (recv(a.tcp, &(nodes[i].result_p), sizeof(nodes[i].result_p), MSG_DONTWAIT) < (int)sizeof(nodes[i].result_p))
+            int recv_ret = recv(a.tcp, &(nodes[i].result_p), sizeof(nodes[i].result_p), MSG_DONTWAIT);
+            if(recv_ret == -1)
             {
                 perror("no result from server / seems to disconnect");
+                return EXIT_FAILURE;
+            }
+            else if(recv_ret < sizeof(nodes[i].result_p))
+            {
+                perror("not enoght result from server");
                 return EXIT_FAILURE;
             }
 
