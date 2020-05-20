@@ -134,6 +134,19 @@ int main()
                 return EXIT_FAILURE;
             }
 
+            int option = 1;
+            setsockopt(connect_local.tcp, SOL_SOCKET, SO_KEEPALIVE, &option, sizeof(option));
+            perror("keepalive");
+            option = 1;
+            setsockopt(connect_local.tcp, IPPROTO_TCP, TCP_KEEPCNT, &option, sizeof(option));
+            perror("keepalive_2");
+            option = 1;
+            setsockopt(connect_local.tcp, IPPROTO_TCP, TCP_KEEPIDLE, &option, sizeof(option));
+            perror("keepalive_3");
+            option = 1;
+            setsockopt(connect_local.tcp, IPPROTO_TCP, TCP_KEEPINTVL, &option, sizeof(option));
+            perror("keepalive_4");
+
             if (connect(connect_local.tcp, (struct sockaddr *)&connect_local.addr, sizeof(connect_local.addr)))
             {
                 perror("connect");
@@ -141,11 +154,12 @@ int main()
             }
 
             // setting keepalive time specs
-            int option = 1;
+            option = 1;
             setsockopt(connect_local.tcp, SOL_SOCKET, SO_KEEPALIVE, &option, sizeof(option));
-            option = 3;
+            perror("keepalive_5");
+            option = 1;
             setsockopt(connect_local.tcp, IPPROTO_TCP, TCP_KEEPCNT, &option, sizeof(option));
-            option = 3;
+            option = 1;
             setsockopt(connect_local.tcp, IPPROTO_TCP, TCP_KEEPIDLE, &option, sizeof(option));
             option = 1;
             setsockopt(connect_local.tcp, IPPROTO_TCP, TCP_KEEPINTVL, &option, sizeof(option));

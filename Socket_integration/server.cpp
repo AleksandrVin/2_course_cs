@@ -236,13 +236,13 @@ int main(int argc, char **argv)
     FD_ZERO(&rfds);
     FD_SET(tcp, &rfds);
 
-    retval = select(tcp + 1, &rfds, NULL , NULL, &tv);
-    if(retval == -1)
+    retval = select(tcp + 1, &rfds, NULL, NULL, &tv);
+    if (retval == -1)
     {
         perror("select");
         return EXIT_FAILURE;
     }
-    else if(retval == 0)
+    else if (retval == 0)
     {
         printf("wait for client tcp connection timeout\n");
         return EXIT_FAILURE;
@@ -258,6 +258,16 @@ int main(int argc, char **argv)
     }
 
     close(tcp);
+
+    option = 1;
+    setsockopt(connect_local, SOL_SOCKET, SO_KEEPALIVE, &option, sizeof(option));
+    perror("keepalive");
+    option = 1;
+    setsockopt(connect_local, IPPROTO_TCP, TCP_KEEPCNT, &option, sizeof(option));
+    option = 1;
+    setsockopt(connect_local, IPPROTO_TCP, TCP_KEEPIDLE, &option, sizeof(option));
+    option = 1;
+    setsockopt(connect_local, IPPROTO_TCP, TCP_KEEPINTVL, &option, sizeof(option));
 
     if (send(connect_local, &thread_amount, sizeof(threads), 0) > 0)
     {
