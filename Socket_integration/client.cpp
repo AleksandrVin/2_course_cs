@@ -94,6 +94,8 @@ int main()
     fd_set rfds;
     struct timeval tv;
 
+    int max_fd = 0;
+
     do
     {
         tv.tv_sec = 1;
@@ -155,6 +157,8 @@ int main()
                     connections.push_back(connect_local);
                     printf("connection established. Server have %i threads on ip: %s\n", connect_local.threads, inet_ntoa(connect_local.addr.sin_addr));
                     thread_detected += connect_local.threads;
+                    if (max_fd < connect_local.tcp)
+                        max_fd = connect_local.tcp;
                 }
             }
             else
@@ -229,44 +233,65 @@ int main()
 
     printf("tasks send\n");
 
+    FD_ZERO(&rfds);
     current_node = 0;
-    for (auto a : connections)
+    while (current_node < thread_detected)
     {
-        for (int i = current_node; i < current_node + a.threads; i++)
+        tv.tv_sec = MAX_WAIT_SEC;
+        tv.tv_usec = 0;
+        FD_ZERO(&rfds);
+        for (auto b : connections)
         {
-            tv.tv_sec = MAX_WAIT_SEC;
-            tv.tv_usec = 0;
-
-            FD_ZERO(&rfds);
-            FD_SET(a.tcp, &rfds);
-
-            retval = select(a.tcp + 1, &rfds, NULL, NULL, &tv);
-            if (retval == -1)
-            {
-                perror("error in select");
-                return EXIT_FAILURE;
-            }
-            else if (retval == 0)
-            {
-                perror("seems to server lost connection");
-                return EXIT_FAILURE;
-            }
-
-            int recv_ret = recv(a.tcp, &(nodes[i].result_p), sizeof(nodes[i].result_p), MSG_DONTWAIT);
-            if(recv_ret == -1)
-            {
-                perror("no result from server / seems to disconnect");
-                return EXIT_FAILURE;
-            }
-            else if(recv_ret < sizeof(nodes[i].result_p))
-            {
-                perror("not enoght result from server");
-                return EXIT_FAILURE;
-            }
-
-            result_f_global += nodes[i].result_p;
+            FD_SET(b.tcp, &rfds);
         }
-        current_node += a.threads;
+
+        //printf("waiting on select\n");
+
+        retval = select(max_fd + 1, &rfds, NULL, NULL, &tv);
+        if (retval == -1)
+        {
+            perror("error in select");
+            return EXIT_FAILURE;
+        }
+        else if (retval == 0)
+        {
+            perror("seems to server lost connection");
+            return EXIT_FAILURE;
+        }
+
+        int tcp_local;
+        bool found =  false;
+
+        for(auto a : connections)
+        {
+            if(FD_ISSET(a.tcp, &rfds))
+            {
+                tcp_local = a.tcp;
+                found = true;
+                break;
+            }
+        }
+        if(!found)
+        {
+            printf("seems to disconnect of server");
+            return EXIT_FAILURE;
+        }
+
+        struct Calc_node node;
+
+        int recv_ret = recv(tcp_local, &(node.result_p), sizeof(node.result_p), MSG_DONTWAIT);
+        if (recv_ret == -1)
+        {
+            perror("no result from server / seems to disconnect");
+            return EXIT_FAILURE;
+        }
+        else if (recv_ret < (int)sizeof(node.result_p))
+        {
+            perror("not enoght result from server or disconnect of server");
+            return EXIT_FAILURE;
+        }
+        result_f_global += node.result_p;
+        current_node++;
     }
 
     printf(ANSI_COLOR_RESET "fixed result    is %Lf\n", result_f_global);
